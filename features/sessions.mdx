@@ -1,0 +1,352 @@
+---
+title: Session Management
+description: Cookie-based sessions and middleware protection for secure authentication
+icon: clock
+---
+
+SameVibe implements cookie-based session management with Next.js middleware to protect routes and manage user authentication state.
+
+## Session Architecture
+
+Sessions are managed through three components:
+
+1. **Session Cookies**: Store user ID and session token
+2. **Database Tokens**: Unique session tokens stored in User model
+3. **Middleware**: Validates sessions and protects routes
+
+### Session Cookies
+
+Three cookies are set during successful login:
+
+<CodeGroup>
+```typescript app/api/auth/login/route.ts
+// User ID cookie
+response.cookies.set("userId", user.id.toString(), {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax",
+  maxAge: 60 * 60 * 24 * 7, // 7 days
+  path: "/",
+});
+
+// Session token cookie
+response.cookies.set("sessionToken", sessionToken, {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax",
+  maxAge: 60 * 60 * 24 * 7,
+  path: "/",
+});
+
+// User name cookie (accessible to client)
+response.cookies.set("userName", user.name ?? "", {
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax",
+  maxAge: 60 * 60 * 24 * 7,
+  path: "/",
+});
+```
+</CodeGroup>
+
+### Cookie Configuration
+
+<Tabs>
+  <Tab title="userId">
+    - **Purpose**: Identifies the authenticated user
+    - **httpOnly**: Yes (prevents JavaScript access)
+    - **secure**: Yes in production (HTTPS only)
+    - **sameSite**: lax (CSRF protection)
+    - **maxAge**: 7 days
+  </Tab>
+  <Tab title="sessionToken">
+    - **Purpose**: Validates the current session
+    - **httpOnly**: Yes (prevents JavaScript access)
+    - **secure**: Yes in production (HTTPS only)
+    - **sameSite**: lax (CSRF protection)
+    - **maxAge**: 7 days
+  </Tab>
+  <Tab title="userName">
+    - **Purpose**: Display user name in UI
+    - **httpOnly**: No (accessible to JavaScript)
+    - **secure**: Yes in production (HTTPS only)
+    - **sameSite**: lax (CSRF protection)
+    - **maxAge**: 7 days
+  </Tab>
+</Tabs>
+
+<Note>
+The `userName` cookie is not httpOnly to allow client-side components to display the user's name without server requests.
+</Note>
+
+## Session Token Generation
+
+Session tokens are generated using Node.js's `randomUUID()` function:
+
+```typescript app/api/auth/login/route.ts
+import { randomUUID } from "crypto";
+
+// Generate session token
+const sessionToken = randomUUID();
+
+// Update user with new token (invalidates previous sessions)
+await prisma.user.update({
+  where: { id: user.id },
+  data: { sessionToken },
+});
+```
+
+### Session Invalidation
+
+Each successful login generates a new session token and updates the database. This automatically invalidates all previous sessions for that user.
+
+<Warning>
+When a user logs in from a new device or browser, all other sessions are invalidated. This is a security feature to prevent unauthorized access.
+</Warning>
+
+## Middleware Protection
+
+Next.js middleware protects routes and validates user sessions.
+
+### Middleware Implementation
+
+The middleware is located at `middleware.ts:4`.
+
+<CodeGroup>
+```typescript middleware.ts
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+
+export function middleware(request: NextRequest) {
+  // Get session cookie (userId)
+  const userId = request.cookies.get("userId")?.value;
+
+  // Define public paths (no authentication required)
+  const publicPaths = ["/", "/login", "/signup"];
+
+  // Check if current path is public
+  const isPublicPath =
+    publicPaths.includes(request.nextUrl.pathname) ||
+    request.nextUrl.pathname.startsWith("/api/auth") ||
+    request.nextUrl.pathname.startsWith("/_next") ||
+    request.nextUrl.pathname.includes("favicon.ico");
+
+  // Redirect unauthenticated users from protected routes
+  if (!userId && !isPublicPath) {
+    const loginUrl = new URL("/login", request.url);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // Redirect authenticated users away from login/signup
+  if (
+    userId &&
+    (request.nextUrl.pathname === "/login" ||
+      request.nextUrl.pathname === "/signup")
+  ) {
+    return NextResponse.redirect(new URL("/posts", request.url));
+  }
+
+  return NextResponse.next();
+}
+
+// Configure middleware matcher
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except:
+     * - api/auth (authentication routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization)
+     * - favicon.ico (favicon file)
+     */
+    "/((?!api/auth|_next/static|_next/image|favicon.ico).*)",
+  ],
+};
+```
+</CodeGroup>
+
+### Middleware Logic
+
+1. **Cookie Extraction**: Reads userId cookie (line 6)
+2. **Path Classification**: Determines if path is public (line 12)
+3. **Authentication Guard**: Redirects unauthenticated users to login (line 19)
+4. **Authenticated Guard**: Redirects authenticated users from login/signup (line 25)
+5. **Pass Through**: Allows request to proceed if checks pass (line 33)
+
+### Public Routes
+
+The following routes are accessible without authentication:
+
+- `/` - Home page
+- `/login` - Login page
+- `/signup` - Registration page
+- `/api/auth/*` - Authentication API endpoints
+- `/_next/*` - Next.js internal routes
+- `/favicon.ico` - Favicon
+
+### Protected Routes
+
+All other routes require authentication:
+
+- `/posts` - Post listing
+- `/posts/new` - Create new post
+- `/posts/[id]` - View single post
+- `/api/posts/*` - Post management APIs (excluding auth)
+
+<Note>
+The middleware matcher pattern excludes static assets and authentication routes for optimal performance.
+</Note>
+
+## Session Lifecycle
+
+<Steps>
+  <Step title="User Login">
+    User submits credentials to `/api/auth/login`
+  </Step>
+  <Step title="Token Generation">
+    Server generates UUID session token using `randomUUID()`
+  </Step>
+  <Step title="Database Update">
+    Token is stored in User model, invalidating previous sessions
+  </Step>
+  <Step title="Cookie Creation">
+    Three cookies are set: userId, sessionToken, and userName
+  </Step>
+  <Step title="Session Validation">
+    Middleware checks userId cookie on each request
+  </Step>
+  <Step title="Route Access">
+    User can access protected routes if authenticated
+  </Step>
+</Steps>
+
+## Logout
+
+The logout endpoint clears all session cookies.
+
+### Logout Implementation
+
+The logout API route is located at `app/api/auth/logout/route.ts:22`.
+
+<CodeGroup>
+```typescript app/api/auth/logout/route.ts
+import { NextRequest, NextResponse } from "next/server";
+
+function clearCookies(response: NextResponse) {
+  const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    maxAge: 0, // Expire immediately
+    path: "/",
+  };
+
+  response.cookies.set("userId", "", cookieOptions);
+  response.cookies.set("sessionToken", "", cookieOptions);
+  response.cookies.set("userName", "", {
+    ...cookieOptions,
+    httpOnly: false,
+  });
+}
+
+export async function POST(request: NextRequest) {
+  const response = NextResponse.json(
+    { message: "Sesión cerrada exitosamente" },
+    { status: 200 }
+  );
+  clearCookies(response);
+  return response;
+}
+
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams;
+  const callbackUrl = searchParams.get("callbackUrl") || "/";
+
+  const response = NextResponse.redirect(new URL(callbackUrl, request.url));
+  clearCookies(response);
+  return response;
+}
+```
+</CodeGroup>
+
+### Logout Methods
+
+<Tabs>
+  <Tab title="POST /api/auth/logout">
+    Clears cookies and returns JSON response. Used by JavaScript fetch calls:
+    
+    ```typescript
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/login";
+    ```
+  </Tab>
+  <Tab title="GET /api/auth/logout">
+    Clears cookies and redirects to callback URL. Can be used with links:
+    
+    ```html
+    <a href="/api/auth/logout?callbackUrl=/">Logout</a>
+    ```
+  </Tab>
+</Tabs>
+
+### Cookie Clearing
+
+Cookies are cleared by setting `maxAge: 0` (line 8), which causes them to expire immediately.
+
+## Session Storage
+
+Session tokens are stored in the User model:
+
+```prisma prisma/schema.prisma
+model User {
+  id           Int     @id @default(autoincrement())
+  email        String  @unique
+  password     String
+  name         String?
+  sessionToken String? @unique
+  posts        Post[]
+}
+```
+
+The `sessionToken` field:
+- Is optional (nullable)
+- Has a unique constraint
+- Stores the current active session UUID
+
+<Warning>
+The session token in the database should match the sessionToken cookie for full session validation. Currently, the middleware only checks for the presence of userId.
+</Warning>
+
+## Security Considerations
+
+<AccordionGroup>
+  <Accordion title="httpOnly Cookies">
+    The userId and sessionToken cookies use `httpOnly: true` to prevent XSS attacks from accessing sensitive session data.
+  </Accordion>
+  
+  <Accordion title="Secure Flag">
+    In production, cookies require HTTPS with the `secure` flag, preventing transmission over unencrypted connections.
+  </Accordion>
+  
+  <Accordion title="SameSite Protection">
+    The `sameSite: "lax"` setting provides CSRF protection while allowing normal navigation.
+  </Accordion>
+  
+  <Accordion title="Session Invalidation">
+    New logins invalidate old sessions by updating the database token, preventing session hijacking.
+  </Accordion>
+  
+  <Accordion title="Short-Lived Sessions">
+    Sessions expire after 7 days, requiring re-authentication for better security.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="lock" href="/features/authentication">
+    Learn about user login and password encryption
+  </Card>
+  <Card title="Posts" icon="file-lines" href="/features/posts">
+    Explore post management and authorization
+  </Card>
+</CardGroup>

@@ -1,0 +1,131 @@
+---
+title: 'Posts API Overview'
+description: 'Comprehensive guide to the Posts API endpoints in SameVibe'
+icon: 'file-lines'
+---
+
+## Introduction
+
+The Posts API allows you to create, retrieve, and delete posts in the SameVibe micro-blogging platform. Posts are the core content type, allowing users to share stories and ideas with the community.
+
+## Post Data Model
+
+Posts in SameVibe follow this data structure:
+
+<ResponseField name="id" type="integer" required>
+  Unique identifier for the post (auto-generated)
+</ResponseField>
+
+<ResponseField name="title" type="string" required>
+  The title of the post
+</ResponseField>
+
+<ResponseField name="content" type="string">
+  The main content of the post (supports Markdown)
+</ResponseField>
+
+<ResponseField name="published" type="boolean" default="false">
+  Publication status of the post
+</ResponseField>
+
+<ResponseField name="authorId" type="integer" required>
+  ID of the user who created the post
+</ResponseField>
+
+<ResponseField name="author" type="object">
+  Related User object containing author information
+  <ResponseField name="id" type="integer">
+    Author's user ID
+  </ResponseField>
+  <ResponseField name="email" type="string">
+    Author's email address
+  </ResponseField>
+  <ResponseField name="name" type="string">
+    Author's display name
+  </ResponseField>
+</ResponseField>
+
+## Authentication Requirements
+
+All Posts API endpoints require authentication via HTTP-only cookies:
+
+- **Cookie Name**: `userId`
+- **Cookie Type**: HTTP-only
+- **Required For**: All create and delete operations
+
+Unauthenticated requests will receive a `401 Unauthorized` response.
+
+## Common Response Formats
+
+### Success Response
+
+```json
+{
+  "message": "Post deleted successfully"
+}
+```
+
+### Error Response
+
+```json
+{
+  "error": "Error message description"
+}
+```
+
+## HTTP Status Codes
+
+| Code | Description |
+|------|-------------|
+| 200 | Success |
+| 400 | Bad Request - Invalid parameters |
+| 401 | Unauthorized - Missing authentication |
+| 403 | Forbidden - Insufficient permissions |
+| 404 | Not Found - Resource doesn't exist |
+| 500 | Internal Server Error |
+
+## Available Endpoints
+
+<CardGroup cols={2}>
+  <Card
+    title="Create Post"
+    icon="plus"
+    href="/api/posts/create"
+  >
+    Create a new post with title and content
+  </Card>
+  <Card
+    title="Delete Post"
+    icon="trash"
+    href="/api/posts/delete"
+  >
+    Delete a post by ID (author only)
+  </Card>
+</CardGroup>
+
+## Authorization Rules
+
+### Post Deletion
+
+Users can only delete their own posts. The API verifies:
+
+1. The user is authenticated (has valid `userId` cookie)
+2. The post exists in the database
+3. The authenticated user's ID matches the post's `authorId`
+
+Attempting to delete another user's post results in a `403 Forbidden` response.
+
+## Rate Limiting
+
+Currently, there are no rate limits enforced on the Posts API. This may change in future versions.
+
+## Content Support
+
+Post content supports Markdown formatting, allowing users to include:
+
+- Headers
+- Bold and italic text
+- Lists
+- Links
+- Code blocks
+- And other standard Markdown elements

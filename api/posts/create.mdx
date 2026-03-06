@@ -1,0 +1,150 @@
+---
+title: 'Create Post'
+api: 'POST /posts/new'
+description: 'Create a new post in the SameVibe platform'
+icon: 'plus'
+---
+
+## Overview
+
+This endpoint creates a new post with the provided title and content. The post is automatically associated with the authenticated user.
+
+<Note>
+  This endpoint uses a server action pattern rather than a traditional REST API endpoint. It processes form data submissions.
+</Note>
+
+## Authentication
+
+<ParamField header="Cookie" name="userId" type="string" required>
+  HTTP-only cookie containing the authenticated user's ID. Users without this cookie will be redirected to the login page.
+</ParamField>
+
+## Request Body
+
+The endpoint accepts `multipart/form-data` or `application/x-www-form-urlencoded`:
+
+<ParamField body="title" type="string" required>
+  The title of the post. Must not be empty or contain only whitespace.
+  
+  **Example**: "Hace unos días en la playa..."
+</ParamField>
+
+<ParamField body="content" type="string" required>
+  The main content of the post. Supports Markdown formatting. Must not be empty or contain only whitespace.
+  
+  **Example**: "Escribe tu historia aquí... (Markdown soportado)"
+</ParamField>
+
+## Response
+
+### Success
+
+On successful creation, the user is redirected to `/posts` (the posts listing page). The posts page cache is revalidated to show the new post.
+
+**Status Code**: `302 Found` (redirect)
+
+**Location**: `/posts`
+
+### Error Responses
+
+<ResponseField name="error" type="string">
+  Error message describing what went wrong
+</ResponseField>
+
+| Status Code | Description |
+|-------------|-------------|
+| 302 (to /login) | User is not authenticated |
+| 400 | Title or content is empty/whitespace only |
+| 500 | Database error or internal server error |
+
+## Post Creation Details
+
+When a post is created:
+
+1. The `authorId` is automatically set from the authenticated user's `userId` cookie
+2. The `published` field defaults to `false` (as defined in the Prisma schema at prisma/schema.prisma:24)
+3. An auto-incrementing `id` is assigned (prisma/schema.prisma:21)
+
+Source: app/posts/new/page.tsx:32-38
+
+## Example Request
+
+### cURL
+
+```bash
+curl -X POST https://samevibe.com/posts/new \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -H "Cookie: userId=123" \
+  -d "title=My Amazing Story" \
+  -d "content=This is the content of my post with **markdown** support."
+```
+
+### JavaScript (Fetch)
+
+```javascript
+const formData = new FormData();
+formData.append('title', 'My Amazing Story');
+formData.append('content', 'This is the content of my post with **markdown** support.');
+
+const response = await fetch('/posts/new', {
+  method: 'POST',
+  body: formData,
+  credentials: 'include', // Include cookies
+  redirect: 'follow'
+});
+
+if (response.redirected) {
+  console.log('Post created successfully!');
+  console.log('Redirected to:', response.url);
+}
+```
+
+### HTML Form
+
+```html
+<form action="/posts/new" method="POST">
+  <label for="title">Title</label>
+  <input 
+    type="text" 
+    id="title" 
+    name="title" 
+    placeholder="Your story title" 
+    required 
+  />
+  
+  <label for="content">Content</label>
+  <textarea 
+    id="content" 
+    name="content" 
+    placeholder="Write your story here..." 
+    rows="10" 
+    required
+  ></textarea>
+  
+  <button type="submit">Publish</button>
+</form>
+```
+
+## Validation Rules
+
+<Warning>
+  Both title and content must contain non-whitespace characters. Empty strings or strings with only spaces, tabs, or newlines will be rejected.
+</Warning>
+
+Validation logic (app/posts/new/page.tsx:28-30):
+
+- `title.trim()` must not be empty
+- `content.trim()` must not be empty
+
+## Implementation Notes
+
+- The endpoint uses Next.js Server Actions pattern
+- Post creation is handled server-side for security
+- After creation, the `/posts` path is revalidated using `revalidatePath()` (app/posts/new/page.tsx:40)
+- Users are automatically redirected to the posts listing page upon success (app/posts/new/page.tsx:41)
+
+## Related Endpoints
+
+<Card title="Delete Post" icon="trash" href="/api/posts/delete">
+  Learn how to delete a post
+</Card>

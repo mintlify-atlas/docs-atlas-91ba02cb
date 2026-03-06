@@ -1,0 +1,266 @@
+---
+title: 'Delete Post'
+api: 'DELETE /api/posts/{id}'
+description: 'Delete a post by ID (author only)'
+icon: 'trash'
+---
+
+## Overview
+
+Deletes a specific post by its ID. Only the author of the post can delete it. This endpoint enforces strict authorization checks to ensure users can only delete their own content.
+
+## Endpoint
+
+```
+DELETE /api/posts/{id}
+```
+
+## Authentication
+
+<ParamField header="Cookie" name="userId" type="string" required>
+  HTTP-only cookie containing the authenticated user's ID. Required for authorization.
+</ParamField>
+
+## URL Parameters
+
+<ParamField path="id" type="integer" required>
+  The unique identifier of the post to delete. Must be a valid integer.
+  
+  **Example**: `42`
+</ParamField>
+
+## Authorization Logic
+
+The endpoint performs the following authorization checks (app/api/posts/[id]/route.ts:11-37):
+
+1. **Authentication Check**: Verifies the `userId` cookie exists
+2. **ID Validation**: Ensures the post ID is a valid integer
+3. **Post Existence**: Checks if the post exists in the database
+4. **Ownership Verification**: Confirms the authenticated user is the post author
+
+All checks must pass for the deletion to proceed.
+
+## Response
+
+### Success Response
+
+**Status Code**: `200 OK`
+
+```json
+{
+  "message": "Post deleted successfully"
+}
+```
+
+### Error Responses
+
+<ResponseField name="error" type="string">
+  Error message describing what went wrong
+</ResponseField>
+
+#### 401 Unauthorized
+
+Returned when no authentication cookie is present.
+
+```json
+{
+  "error": "Unauthorized"
+}
+```
+
+#### 400 Bad Request
+
+Returned when the post ID is not a valid integer.
+
+```json
+{
+  "error": "Invalid post ID"
+}
+```
+
+#### 404 Not Found
+
+Returned when the post doesn't exist in the database.
+
+```json
+{
+  "error": "Post not found"
+}
+```
+
+#### 403 Forbidden
+
+Returned when the authenticated user is not the post author.
+
+```json
+{
+  "error": "Forbidden: You can only delete your own posts"
+}
+```
+
+#### 500 Internal Server Error
+
+Returned when a database or server error occurs.
+
+```json
+{
+  "error": "Internal server error"
+}
+```
+
+## Example Requests
+
+### cURL
+
+```bash
+curl -X DELETE https://samevibe.com/api/posts/42 \
+  -H "Cookie: userId=123" \
+  -H "Content-Type: application/json"
+```
+
+### JavaScript (Fetch)
+
+```javascript
+const deletePost = async (postId) => {
+  try {
+    const response = await fetch(`/api/posts/${postId}`, {
+      method: 'DELETE',
+      credentials: 'include', // Include cookies
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+      console.log('Success:', data.message);
+      return true;
+    } else {
+      console.error('Error:', data.error);
+      return false;
+    }
+  } catch (error) {
+    console.error('Network error:', error);
+    return false;
+  }
+};
+
+// Usage
+await deletePost(42);
+```
+
+### Python (Requests)
+
+```python
+import requests
+
+url = "https://samevibe.com/api/posts/42"
+cookies = {"userId": "123"}
+
+response = requests.delete(url, cookies=cookies)
+
+if response.status_code == 200:
+    print("Post deleted successfully")
+    print(response.json())
+else:
+    print(f"Error {response.status_code}: {response.json()['error']}")
+```
+
+## Error Handling Example
+
+```javascript
+const handleDeletePost = async (postId) => {
+  const response = await fetch(`/api/posts/${postId}`, {
+    method: 'DELETE',
+    credentials: 'include'
+  });
+  
+  const data = await response.json();
+  
+  switch (response.status) {
+    case 200:
+      alert('Post deleted successfully!');
+      // Refresh the posts list
+      window.location.reload();
+      break;
+    
+    case 401:
+      alert('Please log in to delete posts');
+      window.location.href = '/login';
+      break;
+    
+    case 403:
+      alert('You can only delete your own posts');
+      break;
+    
+    case 404:
+      alert('Post not found');
+      break;
+    
+    case 400:
+      alert('Invalid post ID');
+      break;
+    
+    default:
+      alert('An error occurred. Please try again.');
+  }
+};
+```
+
+## Implementation Details
+
+### Database Query
+
+The endpoint first retrieves only the `authorId` field for efficiency (app/api/posts/[id]/route.ts:22-25):
+
+```typescript
+const post = await prisma.post.findUnique({
+  where: { id: postId },
+  select: { authorId: true },
+});
+```
+
+### Ownership Check
+
+The authorization compares the post's `authorId` with the authenticated user's ID (app/api/posts/[id]/route.ts:32):
+
+```typescript
+if (post.authorId !== parseInt(userId)) {
+  return NextResponse.json(
+    { error: "Forbidden: You can only delete your own posts" },
+    { status: 403 }
+  );
+}
+```
+
+### Deletion
+
+Only after all checks pass, the post is deleted (app/api/posts/[id]/route.ts:40-42):
+
+```typescript
+await prisma.post.delete({
+  where: { id: postId },
+});
+```
+
+## Security Considerations
+
+<Warning>
+  This endpoint enforces strict authorization. Users cannot delete posts they don't own, even if they know the post ID.
+</Warning>
+
+- **Cookie-based authentication**: Uses HTTP-only cookies to prevent XSS attacks
+- **Ownership verification**: Double-checks that the requester owns the post
+- **Integer validation**: Prevents injection attacks via malformed IDs
+- **Error handling**: Catches and logs errors without exposing sensitive information
+
+## Related Endpoints
+
+<Card title="Create Post" icon="plus" href="/api/posts/create">
+  Learn how to create a new post
+</Card>
+
+## Source Code Reference
+
+For full implementation details, see: app/api/posts/[id]/route.ts

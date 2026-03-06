@@ -1,0 +1,245 @@
+---
+title: Installation
+description: Complete guide to installing and setting up SameVibe on your local machine
+icon: download
+---
+
+## System Requirements
+
+Before installing SameVibe, ensure your system meets the following requirements:
+
+<Info>
+  **Minimum Requirements:**
+  - Node.js 18 or higher
+  - PostgreSQL 12 or higher
+  - npm, yarn, pnpm, or bun package manager
+  - 2GB RAM minimum
+</Info>
+
+## Installation Steps
+
+<Steps>
+  <Step title="Clone the Repository">
+    First, clone the SameVibe repository to your local machine:
+
+    ```bash
+    git clone https://github.com/yourusername/samevibe.git
+    cd samevibe
+    ```
+  </Step>
+
+  <Step title="Install Dependencies">
+    Install all required dependencies using your preferred package manager:
+
+    <CodeGroup>
+      ```bash npm
+      npm install
+      ```
+
+      ```bash yarn
+      yarn install
+      ```
+
+      ```bash pnpm
+      pnpm install
+      ```
+
+      ```bash bun
+      bun install
+      ```
+    </CodeGroup>
+
+    This will install all dependencies listed in `package.json`, including:
+    - **Next.js 16.0.8** - React framework for production
+    - **React 19.2.1** - UI library
+    - **Prisma 6.19.0** - Database ORM
+    - **PostgreSQL adapter** - Database connection
+    - **Tailwind CSS 4** - Utility-first CSS framework
+  </Step>
+
+  <Step title="Set Up Environment Variables">
+    Create a `.env` file in the root directory:
+
+    ```bash
+    touch .env
+    ```
+
+    Add your database connection string:
+
+    ```bash
+    DATABASE_URL="postgresql://username:password@localhost:5432/samevibe"
+    ```
+
+    <Warning>
+      Never commit your `.env` file to version control. Make sure it's listed in `.gitignore`.
+    </Warning>
+  </Step>
+
+  <Step title="Generate Prisma Client">
+    Generate the Prisma Client based on your schema:
+
+    ```bash
+    npx prisma generate
+    ```
+
+    This creates the type-safe Prisma Client in `src/generated/client/` as configured in your schema.
+  </Step>
+
+  <Step title="Set Up the Database">
+    Push the Prisma schema to your database:
+
+    ```bash
+    npx prisma db push
+    ```
+
+    This creates the `User` and `Post` tables in your PostgreSQL database.
+  </Step>
+
+  <Step title="Start the Development Server">
+    Launch the development server:
+
+    <CodeGroup>
+      ```bash npm
+      npm run dev
+      ```
+
+      ```bash yarn
+      yarn dev
+      ```
+
+      ```bash pnpm
+      pnpm dev
+      ```
+
+      ```bash bun
+      bun dev
+      ```
+    </CodeGroup>
+
+    The application will be available at `http://localhost:3000`
+  </Step>
+</Steps>
+
+## Dependencies Overview
+
+### Core Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|----------|
+| `next` | 16.0.8 | React framework |
+| `react` | 19.2.1 | UI library |
+| `@prisma/client` | 6.19.1 | Database client |
+| `@prisma/adapter-pg` | 7.1.0 | PostgreSQL adapter |
+| `pg` | 8.16.3 | PostgreSQL driver |
+
+### UI Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|----------|
+| `tailwindcss` | 4.x | CSS framework |
+| `lucide-react` | 0.556.0 | Icon library |
+| `@radix-ui/react-*` | Various | Accessible UI components |
+| `class-variance-authority` | 0.7.1 | Component variants |
+
+### Authentication & Security
+
+| Package | Version | Purpose |
+|---------|---------|----------|
+| `bcryptjs` | 3.0.3 | Password hashing |
+| `cookie` | 1.1.1 | Cookie parsing |
+
+## Verification
+
+After installation, verify everything is working correctly:
+
+<Steps>
+  <Step title="Check Database Connection">
+    Verify Prisma can connect to your database:
+
+    ```bash
+    npx prisma db pull
+    ```
+
+    This should complete without errors if your database connection is configured correctly.
+  </Step>
+
+  <Step title="Run Type Checking">
+    Ensure TypeScript compilation works:
+
+    ```bash
+    npx tsc --noEmit
+    ```
+  </Step>
+
+  <Step title="Test the Build">
+    Create a production build to verify everything compiles:
+
+    ```bash
+    npm run build
+    ```
+
+    A successful build confirms all dependencies are correctly installed.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Node.js version mismatch">
+    If you encounter errors related to Node.js version:
+
+    ```bash
+    node --version
+    ```
+
+    Ensure you're running Node.js 18 or higher. Use [nvm](https://github.com/nvm-sh/nvm) to manage Node versions:
+
+    ```bash
+    nvm install 18
+    nvm use 18
+    ```
+  </Accordion>
+
+  <Accordion title="PostgreSQL connection errors">
+    If Prisma cannot connect to PostgreSQL:
+
+    1. Verify PostgreSQL is running: `pg_isready`
+    2. Check your `DATABASE_URL` format
+    3. Ensure the database exists: `createdb samevibe`
+    4. Verify user permissions
+  </Accordion>
+
+  <Accordion title="Port already in use">
+    If port 3000 is already in use:
+
+    ```bash
+    PORT=3001 npm run dev
+    ```
+
+    Or kill the process using port 3000:
+
+    ```bash
+    lsof -ti:3000 | xargs kill -9
+    ```
+  </Accordion>
+
+  <Accordion title="Module not found errors">
+    Clear your node_modules and reinstall:
+
+    ```bash
+    rm -rf node_modules package-lock.json
+    npm install
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/guides/configuration">
+    Configure environment variables and framework settings
+  </Card>
+  <Card title="Database Setup" icon="database" href="/guides/database-setup">
+    Learn about Prisma schema and migrations
+  </Card>
+</CardGroup>

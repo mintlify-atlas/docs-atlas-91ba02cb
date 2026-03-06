@@ -1,0 +1,125 @@
+---
+title: "Sign Up"
+description: "Create a new user account"
+---
+
+## POST /api/auth/signup
+
+Creates a new user account with email, password, and name. Passwords are hashed using bcrypt before storage.
+
+### Request Body
+
+<ParamField body="name" type="string" required>
+  The user's display name
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  The user's email address. Must be a valid email format and unique in the system.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The user's password. Must be at least 6 characters long.
+</ParamField>
+
+<ParamField body="confirmPassword" type="string" required>
+  Password confirmation. Must match the password field.
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message confirming user creation
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  The created user object (without password)
+  
+  <ResponseField name="id" type="number">
+    Unique user identifier
+  </ResponseField>
+  
+  <ResponseField name="name" type="string">
+    User's display name
+  </ResponseField>
+  
+  <ResponseField name="email" type="string">
+    User's email address
+  </ResponseField>
+  
+  <ResponseField name="createdAt" type="string">
+    ISO 8601 timestamp of account creation
+  </ResponseField>
+</ResponseField>
+
+### Example Request
+
+```bash
+curl -X POST https://api.samevibe.com/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "John Doe",
+    "email": "john@example.com",
+    "password": "securepass123",
+    "confirmPassword": "securepass123"
+  }'
+```
+
+### Example Response
+
+<ResponseExample>
+```json Success (201)
+{
+  "message": "Usuario creado exitosamente",
+  "user": {
+    "id": 123,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "createdAt": "2026-03-06T10:30:00.000Z"
+  }
+}
+```
+
+```json Missing Fields (400)
+{
+  "error": "Todos los campos son requeridos"
+}
+```
+
+```json Password Mismatch (400)
+{
+  "error": "Las contraseñas no coinciden"
+}
+```
+
+```json Password Too Short (400)
+{
+  "error": "La contraseña debe tener al menos 6 caracteres"
+}
+```
+
+```json Invalid Email (400)
+{
+  "error": "El email no es válido"
+}
+```
+
+```json Email Already Exists (400)
+{
+  "error": "El email ya está registrado"
+}
+```
+
+```json Server Error (500)
+{
+  "error": "Error al crear la cuenta"
+}
+```
+</ResponseExample>
+
+### Error Codes
+
+| Status Code | Description |
+|-------------|-------------|
+| 201 | User successfully created |
+| 400 | Validation error (missing fields, password mismatch, invalid email, etc.) |
+| 500 | Internal server error |

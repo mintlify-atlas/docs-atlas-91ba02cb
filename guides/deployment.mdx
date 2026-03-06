@@ -1,0 +1,779 @@
+---
+title: Deployment
+description: Complete guide to deploying SameVibe to production environments
+icon: rocket
+---
+
+## Overview
+
+Deploying SameVibe to production involves building the application, configuring environment variables, running database migrations, and choosing a hosting platform. This guide covers all aspects of production deployment.
+
+## Pre-Deployment Checklist
+
+Before deploying to production, ensure you have:
+
+<Steps>
+  <Step title="Environment Configuration">
+    <Checklist>
+      <Check>Production database URL configured</Check>
+      <Check>Environment variables documented</Check>
+      <Check>Secrets secured (not in version control)</Check>
+      <Check>SSL certificates obtained (if needed)</Check>
+    </Checklist>
+  </Step>
+
+  <Step title="Code Quality">
+    <Checklist>
+      <Check>All tests passing</Check>
+      <Check>TypeScript compilation successful</Check>
+      <Check>No console errors or warnings</Check>
+      <Check>Code linted and formatted</Check>
+    </Checklist>
+  </Step>
+
+  <Step title="Database">
+    <Checklist>
+      <Check>Production database created</Check>
+      <Check>Database user configured with appropriate permissions</Check>
+      <Check>Migrations prepared and tested</Check>
+      <Check>Backup strategy in place</Check>
+    </Checklist>
+  </Step>
+
+  <Step title="Performance">
+    <Checklist>
+      <Check>Production build tested locally</Check>
+      <Check>Images optimized</Check>
+      <Check>Bundle size analyzed</Check>
+      <Check>Caching strategy configured</Check>
+    </Checklist>
+  </Step>
+</Steps>
+
+## Production Build
+
+Create an optimized production build of your application:
+
+<Steps>
+  <Step title="Generate Prisma Client">
+    First, generate the Prisma Client for production:
+
+    ```bash
+    npx prisma generate
+    ```
+
+    This creates the type-safe database client in `src/generated/client/`.
+  </Step>
+
+  <Step title="Build the Application">
+    Create a production build:
+
+    <CodeGroup>
+      ```bash npm
+      npm run build
+      ```
+
+      ```bash yarn
+      yarn build
+      ```
+
+      ```bash pnpm
+      pnpm build
+      ```
+
+      ```bash bun
+      bun run build
+      ```
+    </CodeGroup>
+
+    This command:
+    - Compiles TypeScript to JavaScript
+    - Optimizes React components
+    - Bundles and minifies code
+    - Generates static pages where possible
+    - Creates optimized CSS
+  </Step>
+
+  <Step title="Test Production Build Locally">
+    Before deploying, test the production build:
+
+    ```bash
+    npm run start
+    ```
+
+    This runs the production server on `http://localhost:3000`. Verify:
+    - All pages load correctly
+    - Database connections work
+    - Authentication functions properly
+    - No console errors
+  </Step>
+</Steps>
+
+<Info>
+  The production build is significantly faster and more optimized than the development server.
+</Info>
+
+## Environment Variables for Production
+
+Configure these environment variables for your production environment:
+
+### Required Variables
+
+```bash .env.production
+# Database Connection
+DATABASE_URL="postgresql://user:password@host:5432/samevibe_prod?sslmode=require"
+
+# Node Environment
+NODE_ENV="production"
+
+# Application URL
+NEXT_PUBLIC_APP_URL="https://yourdomain.com"
+```
+
+### Optional Variables
+
+```bash .env.production
+# Database Connection Pool
+DATABASE_CONNECTION_LIMIT="10"
+DATABASE_POOL_TIMEOUT="20"
+
+# Session Configuration
+SESSION_SECRET="your-super-secret-session-key"
+SESSION_COOKIE_SECURE="true"
+
+# Logging
+LOG_LEVEL="error"
+
+# Performance
+NEXT_TELEMETRY_DISABLED="1"
+```
+
+<Warning>
+  **Security Critical:**
+  - Always use SSL for production database connections (`sslmode=require`)
+  - Use strong, randomly generated secrets
+  - Never expose environment variables in client-side code
+  - Rotate credentials regularly
+</Warning>
+
+### Environment Variable Security
+
+<Tabs>
+  <Tab title="Vercel">
+    Add environment variables in the Vercel dashboard:
+
+    1. Go to Project Settings → Environment Variables
+    2. Add each variable with production scope
+    3. Use Vercel's encryption for sensitive data
+  </Tab>
+
+  <Tab title="Railway">
+    Configure variables in Railway:
+
+    ```bash
+    railway variables set DATABASE_URL="postgresql://..."
+    railway variables set NODE_ENV="production"
+    ```
+
+    Or use the Railway dashboard to add variables.
+  </Tab>
+
+  <Tab title="Docker">
+    Use Docker secrets or environment files:
+
+    ```yaml docker-compose.yml
+    services:
+      app:
+        env_file:
+          - .env.production
+        secrets:
+          - db_password
+    secrets:
+      db_password:
+        external: true
+    ```
+  </Tab>
+
+  <Tab title="Environment File">
+    For traditional hosting:
+
+    ```bash
+    # Create production env file
+    cp .env.example .env.production
+    
+    # Secure the file
+    chmod 600 .env.production
+    
+    # Load in your startup script
+    export $(cat .env.production | xargs)
+    ```
+  </Tab>
+</Tabs>
+
+## Database Migration in Production
+
+Managing database migrations in production requires careful planning:
+
+### Initial Deployment
+
+For your first production deployment:
+
+<Steps>
+  <Step title="Create Production Database">
+    Set up your production PostgreSQL database:
+
+    ```sql
+    CREATE DATABASE samevibe_prod;
+    CREATE USER samevibe_prod_user WITH PASSWORD 'strong_password';
+    GRANT ALL PRIVILEGES ON DATABASE samevibe_prod TO samevibe_prod_user;
+    ```
+  </Step>
+
+  <Step title="Configure Connection String">
+    Set your production `DATABASE_URL` with SSL enabled:
+
+    ```bash
+    DATABASE_URL="postgresql://samevibe_prod_user:password@db.example.com:5432/samevibe_prod?sslmode=require"
+    ```
+  </Step>
+
+  <Step title="Run Migrations">
+    Apply all migrations to production:
+
+    ```bash
+    npx prisma migrate deploy
+    ```
+
+    This command:
+    - Applies all pending migrations
+    - Doesn't prompt for confirmation
+    - Fails safely if migrations conflict
+    - Records migration history
+  </Step>
+
+  <Step title="Verify Schema">
+    Confirm the schema is correct:
+
+    ```bash
+    npx prisma validate
+    npx prisma db pull
+    ```
+  </Step>
+</Steps>
+
+### Subsequent Deployments
+
+For updates after initial deployment:
+
+```bash
+# 1. Create migration in development
+npx prisma migrate dev --name add_new_feature
+
+# 2. Test migration thoroughly
+npm run build
+npm test
+
+# 3. Deploy to production
+git push origin main
+
+# 4. Run migrations on production
+npx prisma migrate deploy
+```
+
+<Warning>
+  **Migration Best Practices:**
+  - Always test migrations in a staging environment first
+  - Back up your production database before running migrations
+  - Plan for rollback procedures
+  - Consider using blue-green deployments for zero-downtime migrations
+</Warning>
+
+### Zero-Downtime Migrations
+
+For critical applications, use this strategy:
+
+<Steps>
+  <Step title="Backward-Compatible Migration">
+    Make schema changes backward-compatible:
+
+    ```prisma
+    // Add optional field first
+    model User {
+      email String @unique
+      newField String? // Optional
+    }
+    ```
+  </Step>
+
+  <Step title="Deploy Application">
+    Deploy the new application version that can work with both old and new schema.
+  </Step>
+
+  <Step title="Migrate Data">
+    Run data migration scripts to populate new fields.
+  </Step>
+
+  <Step title="Make Field Required">
+    In a subsequent deployment, make the field required:
+
+    ```prisma
+    model User {
+      email String @unique
+      newField String // Now required
+    }
+    ```
+  </Step>
+</Steps>
+
+## Hosting Platforms
+
+SameVibe can be deployed to various platforms. Here are the recommended options:
+
+### Vercel (Recommended)
+
+Vercel is the easiest platform for Next.js applications.
+
+<Steps>
+  <Step title="Install Vercel CLI">
+    ```bash
+    npm install -g vercel
+    ```
+  </Step>
+
+  <Step title="Login and Initialize">
+    ```bash
+    vercel login
+    vercel
+    ```
+
+    Follow the prompts to link your project.
+  </Step>
+
+  <Step title="Configure Database">
+    Add your production database URL in Vercel dashboard:
+
+    - Go to Project Settings → Environment Variables
+    - Add `DATABASE_URL` with your PostgreSQL connection string
+    - Select "Production" environment
+  </Step>
+
+  <Step title="Deploy">
+    ```bash
+    vercel --prod
+    ```
+
+    Or connect your Git repository for automatic deployments.
+  </Step>
+</Steps>
+
+**Vercel Features:**
+- Automatic HTTPS
+- Global CDN
+- Instant rollbacks
+- Preview deployments
+- Edge functions support
+- Built-in analytics
+
+### Railway
+
+Railway provides both application hosting and managed PostgreSQL.
+
+<Steps>
+  <Step title="Install Railway CLI">
+    ```bash
+    npm install -g @railway/cli
+    railway login
+    ```
+  </Step>
+
+  <Step title="Initialize Project">
+    ```bash
+    railway init
+    ```
+  </Step>
+
+  <Step title="Add PostgreSQL">
+    ```bash
+    railway add postgresql
+    ```
+
+    Railway automatically sets `DATABASE_URL`.
+  </Step>
+
+  <Step title="Deploy">
+    ```bash
+    railway up
+    ```
+  </Step>
+</Steps>
+
+**Railway Features:**
+- Managed PostgreSQL included
+- Automatic SSL certificates
+- Environment variable management
+- Deploy from Git or CLI
+- Pricing scales with usage
+
+### Docker Deployment
+
+Deploy SameVibe using Docker for maximum control.
+
+```dockerfile Dockerfile
+FROM node:18-alpine AS base
+
+# Install dependencies only when needed
+FROM base AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# Rebuild the source code only when needed
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# Generate Prisma Client
+RUN npx prisma generate
+
+# Build Next.js
+RUN npm run build
+
+# Production image
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV production
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV PORT 3000
+
+CMD ["node", "server.js"]
+```
+
+**Docker Compose:**
+
+```yaml docker-compose.yml
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - NODE_ENV=production
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=samevibe
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=samevibe_prod
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+```
+
+**Deploy with Docker:**
+
+```bash
+# Build and start
+docker-compose up -d
+
+# Run migrations
+docker-compose exec app npx prisma migrate deploy
+
+# View logs
+docker-compose logs -f app
+```
+
+### Traditional VPS (Ubuntu)
+
+Deploy to a VPS using systemd:
+
+<Steps>
+  <Step title="Install Dependencies">
+    ```bash
+    sudo apt update
+    sudo apt install nodejs npm postgresql nginx
+    ```
+  </Step>
+
+  <Step title="Clone and Build">
+    ```bash
+    git clone https://github.com/yourusername/samevibe.git
+    cd samevibe
+    npm install
+    npm run build
+    ```
+  </Step>
+
+  <Step title="Create Systemd Service">
+    ```ini /etc/systemd/system/samevibe.service
+    [Unit]
+    Description=SameVibe Application
+    After=network.target postgresql.service
+
+    [Service]
+    Type=simple
+    User=www-data
+    WorkingDirectory=/var/www/samevibe
+    Environment="NODE_ENV=production"
+    EnvironmentFile=/var/www/samevibe/.env.production
+    ExecStart=/usr/bin/npm start
+    Restart=on-failure
+
+    [Install]
+    WantedBy=multi-user.target
+    ```
+  </Step>
+
+  <Step title="Configure Nginx">
+    ```nginx /etc/nginx/sites-available/samevibe
+    server {
+        listen 80;
+        server_name yourdomain.com;
+
+        location / {
+            proxy_pass http://localhost:3000;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Start Services">
+    ```bash
+    sudo systemctl enable samevibe
+    sudo systemctl start samevibe
+    sudo systemctl enable nginx
+    sudo systemctl start nginx
+    ```
+  </Step>
+</Steps>
+
+## Performance Considerations
+
+Optimize your production deployment for performance:
+
+### Database Connection Pooling
+
+Configure connection pooling for better database performance:
+
+```typescript lib/prisma.ts
+import { PrismaClient } from '../src/generated/client';
+import { Pool } from 'pg';
+import { PrismaPg } from '@prisma/adapter-pg';
+
+const connectionString = process.env.DATABASE_URL;
+
+const pool = new Pool({
+  connectionString,
+  max: 10, // Maximum pool size
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+});
+
+const adapter = new PrismaPg(pool);
+
+const prisma = new PrismaClient({ adapter });
+
+export default prisma;
+```
+
+### Caching Strategy
+
+Implement caching for frequently accessed data:
+
+```typescript
+// Redis caching example
+import { Redis } from 'ioredis';
+
+const redis = new Redis(process.env.REDIS_URL);
+
+export async function getCachedData(key: string) {
+  const cached = await redis.get(key);
+  if (cached) return JSON.parse(cached);
+  
+  const data = await fetchDataFromDatabase();
+  await redis.setex(key, 3600, JSON.stringify(data)); // 1 hour TTL
+  return data;
+}
+```
+
+### Next.js Configuration for Production
+
+Optimize your `next.config.ts` for production:
+
+```typescript next.config.ts
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  // Enable React strict mode
+  reactStrictMode: true,
+  
+  // Optimize images
+  images: {
+    domains: ['yourdomain.com'],
+    formats: ['image/avif', 'image/webp'],
+  },
+  
+  // Compress output
+  compress: true,
+  
+  // Enable SWC minification
+  swcMinify: true,
+  
+  // Production-specific headers
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'X-DNS-Prefetch-Control',
+            value: 'on'
+          },
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains; preload'
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff'
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY'
+          },
+        ],
+      },
+    ];
+  },
+};
+
+export default nextConfig;
+```
+
+## Monitoring and Logging
+
+Set up monitoring to track your application's health:
+
+### Application Monitoring
+
+<CardGroup cols={2}>
+  <Card title="Vercel Analytics" icon="chart-line">
+    Built-in analytics for Vercel deployments tracking performance and user behavior.
+  </Card>
+
+  <Card title="Sentry" icon="bug">
+    Error tracking and performance monitoring for production applications.
+  </Card>
+
+  <Card title="DataDog" icon="dog">
+    Comprehensive monitoring for applications, infrastructure, and logs.
+  </Card>
+
+  <Card title="New Relic" icon="chart-bar">
+    Full-stack observability platform for performance monitoring.
+  </Card>
+</CardGroup>
+
+### Database Monitoring
+
+Monitor database performance:
+
+```typescript
+// Log slow queries
+import { PrismaClient } from '../src/generated/client';
+
+const prisma = new PrismaClient({
+  log: [
+    {
+      emit: 'event',
+      level: 'query',
+    },
+  ],
+});
+
+prisma.$on('query', (e) => {
+  if (e.duration > 1000) {
+    console.warn(`Slow query detected (${e.duration}ms): ${e.query}`);
+  }
+});
+```
+
+## Deployment Checklist
+
+Final checklist before going live:
+
+<Checklist>
+  <Check>Production build successful</Check>
+  <Check>All environment variables configured</Check>
+  <Check>Database migrations applied</Check>
+  <Check>SSL certificates installed</Check>
+  <Check>Domain DNS configured</Check>
+  <Check>Health check endpoint working</Check>
+  <Check>Monitoring and logging configured</Check>
+  <Check>Backup strategy implemented</Check>
+  <Check>Error tracking enabled</Check>
+  <Check>Performance optimizations applied</Check>
+  <Check>Security headers configured</Check>
+  <Check>Rate limiting implemented</Check>
+</Checklist>
+
+## Rollback Strategy
+
+Prepare for issues with a rollback plan:
+
+```bash
+# Git-based rollback
+git log --oneline
+git revert <commit-hash>
+git push origin main
+
+# Database rollback (if needed)
+npx prisma migrate resolve --rolled-back <migration-name>
+
+# Vercel rollback
+vercel rollback
+```
+
+<Warning>
+  Always test rollback procedures in a staging environment before relying on them in production.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration Guide" icon="gear" href="/guides/configuration">
+    Review configuration best practices
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/posts/overview">
+    Learn about the API endpoints and usage
+  </Card>
+</CardGroup>

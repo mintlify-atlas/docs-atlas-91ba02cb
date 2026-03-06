@@ -1,0 +1,82 @@
+---
+title: "Log Out"
+description: "End the current user session"
+---
+
+## POST /api/auth/logout
+
+Ends the current user session by clearing all authentication cookies.
+
+### Request Body
+
+No request body required.
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message confirming session termination
+</ResponseField>
+
+### Cookies Cleared
+
+The following cookies are cleared on logout:
+
+- **userId** - User identifier cookie
+- **sessionToken** - Session token cookie
+- **userName** - User display name cookie
+
+### Example Request
+
+```bash
+curl -X POST https://api.samevibe.com/api/auth/logout \
+  -H "Cookie: userId=123; sessionToken=abc-def-ghi"
+```
+
+### Example Response
+
+<ResponseExample>
+```json Success (200)
+{
+  "message": "Sesión cerrada exitosamente"
+}
+```
+</ResponseExample>
+
+---
+
+## GET /api/auth/logout
+
+Alternative logout endpoint that clears cookies and redirects to a specified URL.
+
+### Query Parameters
+
+<ParamField query="callbackUrl" type="string" default="/">
+  URL to redirect to after logout. Defaults to home page ("/").
+</ParamField>
+
+### Response
+
+Redirects to the specified `callbackUrl` with all authentication cookies cleared.
+
+### Example Request
+
+```bash
+curl -X GET "https://api.samevibe.com/api/auth/logout?callbackUrl=/login" \
+  -H "Cookie: userId=123; sessionToken=abc-def-ghi" \
+  -L
+```
+
+### Error Codes
+
+| Status Code | Description |
+|-------------|-------------|
+| 200 | Logout successful (POST method) |
+| 302 | Redirect after logout (GET method) |
+
+### Notes
+
+- Both POST and GET methods are supported
+- POST method returns JSON response
+- GET method redirects with optional callback URL
+- All session cookies are cleared with `maxAge: 0`
+- Cookie clearing respects the same security settings (HttpOnly, Secure, SameSite) as when they were set

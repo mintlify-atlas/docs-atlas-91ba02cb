@@ -1,0 +1,371 @@
+---
+title: Post Management
+description: Creating, reading, and managing posts with Prisma and PostgreSQL
+icon: file-lines
+---
+
+SameVibe provides a complete post management system where authenticated users can create, view, and delete their own posts.
+
+## Post Schema
+
+Posts are stored in PostgreSQL and managed through Prisma ORM.
+
+### Database Model
+
+```prisma prisma/schema.prisma
+model Post {
+  id        Int     @id @default(autoincrement())
+  title     String
+  content   String?
+  published Boolean @default(false)
+  authorId  Int
+  author    User    @relation(fields: [authorId], references: [id])
+}
+```
+
+### Fields
+
+- `id`: Auto-incrementing primary key
+- `title`: Required post title
+- `content`: Optional post content (supports Markdown)
+- `published`: Boolean flag (defaults to false)
+- `authorId`: Foreign key to the User model
+- `author`: Relation to the post's author
+
+<Note>
+The `content` field supports Markdown formatting for rich text posts.
+</Note>
+
+## Creating Posts
+
+Users can create new posts through a server action in the new post page.
+
+### New Post Page
+
+The post creation form is located at `app/posts/new/page.tsx:14`.
+
+<CodeGroup>
+```typescript app/posts/new/page.tsx
+import Form from "next/form";
+import prisma from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+
+export default function NewPost() {
+  async function createPost(formData: FormData) {
+    "use server";
+
+    const cookieStore = await cookies();
+    const userIdCookie = cookieStore.get("userId");
+
+    if (!userIdCookie || !userIdCookie.value) {
+      redirect("/login");
+    }
+
+    const userId = parseInt(userIdCookie.value);
+    const title = formData.get("title") as string;
+    const content = formData.get("content") as string;
+
+    if (!title.trim() || !content.trim()) {
+      return;
+    }
+
+    await prisma.post.create({
+      data: {
+        title,
+        content,
+        authorId: userId,
+      },
+    });
+
+    revalidatePath("/posts");
+    redirect("/posts");
+  }
+
+  return (
+    <Card className="p-8">
+      <Form action={createPost} className="space-y-6">
+        <div className="space-y-2">
+          <label htmlFor="title">
+            Título
+          </label>
+          <Input
+            type="text"
+            id="title"
+            name="title"
+            placeholder="Hace unos días en la playa..."
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="content">
+            Contenido
+          </label>
+          <Textarea
+            id="content"
+            name="content"
+            placeholder="Escribe tu historia aquí... (Markdown soportado)"
+            rows={10}
+            required
+          />
+        </div>
+
+        <Button type="submit">Publicar</Button>
+      </Form>
+    </Card>
+  );
+}
+```
+</CodeGroup>
+
+### Server Action Flow
+
+1. **Authentication Check**: Verifies user is logged in via cookie (line 17)
+2. **Data Extraction**: Extracts title and content from form data (line 24)
+3. **Validation**: Ensures both fields are not empty (line 28)
+4. **Database Insert**: Creates post with Prisma (line 32)
+5. **Cache Revalidation**: Revalidates the posts page (line 40)
+6. **Redirect**: Redirects to posts listing (line 41)
+
+<Warning>
+The createPost function is marked with `"use server"` to execute on the server. User authentication is verified before creating posts.
+</Warning>
+
+## Reading Posts
+
+Posts can be viewed in two ways: as a list or individually.
+
+### Post Listing
+
+The posts index page displays all posts with author information.
+
+<CodeGroup>
+```typescript app/posts/page.tsx
+import prisma from "@/lib/prisma";
+import { Post, User } from "@/src/generated/client/client";
+
+type PostWithAuthor = Post & {
+  author: User;
+};
+
+export default async function Posts() {
+  const posts: PostWithAuthor[] = await prisma.post.findMany({
+    include: {
+      author: true,
+    },
+  });
+
+  return (
+    <div className="grid gap-6">
+      {posts.map((post) => (
+        <Link href={`/posts/${post.id}`} key={post.id}>
+          <Card className="p-6 hover:shadow-lg transition-shadow">
+            <h2 className="text-2xl font-bold">{post.title}</h2>
+            <p className="text-muted-foreground line-clamp-2">
+              {post.content || "No description available"}
+            </p>
+            <span className="text-sm text-muted-foreground">
+              escribió <span className="font-semibold">{post.author.name}</span>
+            </span>
+          </Card>
+        </Link>
+      ))}
+    </div>
+  );
+}
+```
+</CodeGroup>
+
+### Query Features
+
+- **Eager Loading**: Uses Prisma's `include` to fetch author data (line 20)
+- **Type Safety**: TypeScript type combining Post and User models (line 12)
+- **Server Component**: Fetches data directly on the server
+
+### Single Post View
+
+Individual posts are displayed at `app/posts/[id]/page.tsx:11`.
+
+<CodeGroup>
+```typescript app/posts/[id]/page.tsx
+import prisma from "@/lib/prisma";
+import { notFound } from "next/navigation";
+import RichContent from "@/components/RichContent";
+import DeletePostButton from "@/components/DeletePostButton";
+import { cookies } from "next/headers";
+
+export default async function Post({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const cookieStore = await cookies();
+  const userId = cookieStore.get("userId")?.value;
+  
+  const post = await prisma.post.findUnique({
+    where: { id: parseInt(id) },
+    include: {
+      author: true,
+    },
+  });
+
+  if (!post) {
+    notFound();
+  }
+
+  return (
+    <article>
+      <h1 className="text-5xl font-bold">{post.title}</h1>
+      
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-muted-foreground">Escrito por</p>
+          <p className="text-lg font-semibold">{post.author.name}</p>
+        </div>
+        {parseInt(userId || "0") === post.authorId && (
+          <DeletePostButton postId={post.id} postTitle={post.title} />
+        )}
+      </div>
+
+      <Card className="p-8">
+        <RichContent content={post.content || ""} />
+      </Card>
+    </article>
+  );
+}
+```
+</CodeGroup>
+
+### Features
+
+- **Dynamic Routing**: Uses Next.js 15 dynamic params (line 16)
+- **404 Handling**: Returns 404 if post not found (line 29)
+- **Rich Content**: Renders Markdown content with the RichContent component (line 48)
+- **Ownership Check**: Shows delete button only to post author (line 43)
+
+<Note>
+The `RichContent` component handles Markdown rendering for the post content.
+</Note>
+
+## Deleting Posts
+
+Post authors can delete their own posts through the DELETE API endpoint.
+
+### Delete Endpoint
+
+The delete API route is located at `app/api/posts/[id]/route.ts:4`.
+
+<CodeGroup>
+```typescript app/api/posts/[id]/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const postId = parseInt(id);
+  const userId = request.cookies.get("userId")?.value;
+
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Verify post exists and get authorId
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    select: { authorId: true },
+  });
+
+  if (!post) {
+    return NextResponse.json({ error: "Post not found" }, { status: 404 });
+  }
+
+  // Verify ownership
+  if (post.authorId !== parseInt(userId)) {
+    return NextResponse.json(
+      { error: "Forbidden: You can only delete your own posts" },
+      { status: 403 }
+    );
+  }
+
+  // Delete the post
+  await prisma.post.delete({
+    where: { id: postId },
+  });
+
+  return NextResponse.json(
+    { message: "Post deleted successfully" },
+    { status: 200 }
+  );
+}
+```
+</CodeGroup>
+
+### Authorization Flow
+
+1. **Authentication**: Verifies user is logged in (line 13)
+2. **Existence Check**: Ensures post exists (line 23)
+3. **Ownership Verification**: Confirms user owns the post (line 32)
+4. **Deletion**: Deletes the post from database (line 40)
+
+<Tabs>
+  <Tab title="Status Codes">
+    - **200**: Post deleted successfully
+    - **401**: User not authenticated
+    - **403**: User doesn't own the post
+    - **404**: Post not found
+  </Tab>
+  <Tab title="Security">
+    The endpoint implements authorization checks to ensure users can only delete their own posts:
+    
+    ```typescript
+    if (post.authorId !== parseInt(userId)) {
+      return NextResponse.json(
+        { error: "Forbidden: You can only delete your own posts" },
+        { status: 403 }
+      );
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Type Safety
+
+SameVibe uses Prisma's generated types for type-safe database operations.
+
+```typescript
+import { Post, User } from "@/src/generated/client/client";
+
+type PostWithAuthor = Post & {
+  author: User;
+};
+```
+
+Prisma generates TypeScript types based on the schema, ensuring compile-time type safety.
+
+## Prisma Client
+
+The Prisma client is configured to output to a custom location:
+
+```prisma prisma/schema.prisma
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/client"
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="lock" href="/features/authentication">
+    Learn about user authentication and registration
+  </Card>
+  <Card title="UI Components" icon="palette" href="/features/ui-components">
+    Explore the UI component library
+  </Card>
+</CardGroup>

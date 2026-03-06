@@ -1,0 +1,292 @@
+---
+title: Authentication System
+description: User registration, login, and password encryption with bcryptjs
+icon: lock
+---
+
+SameVibe implements a secure authentication system using bcryptjs for password encryption and cookie-based session management.
+
+## User Registration
+
+The signup flow validates user input, checks for existing accounts, and securely stores passwords using bcrypt hashing.
+
+### Registration Endpoint
+
+The signup API route is located at `app/api/auth/signup/route.ts:5`.
+
+<CodeGroup>
+```typescript app/api/auth/signup/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import bcrypt from 'bcryptjs';
+
+export async function POST(request: NextRequest) {
+  const { name, email, password, confirmPassword } = await request.json();
+
+  // Validation
+  if (!name || !email || !password || !confirmPassword) {
+    return NextResponse.json(
+      { error: 'Todos los campos son requeridos' },
+      { status: 400 }
+    );
+  }
+
+  if (password !== confirmPassword) {
+    return NextResponse.json(
+      { error: 'Las contraseñas no coinciden' },
+      { status: 400 }
+    );
+  }
+
+  // Email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return NextResponse.json(
+      { error: 'El email no es válido' },
+      { status: 400 }
+    );
+  }
+
+  // Check for existing user
+  const existingUser = await prisma.user.findUnique({
+    where: { email },
+  });
+
+  if (existingUser) {
+    return NextResponse.json(
+      { error: 'El email ya está registrado' },
+      { status: 400 }
+    );
+  }
+
+  // Hash password with bcrypt
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  // Create user
+  const user = await prisma.user.create({
+    data: {
+      name,
+      email,
+      password: hashedPassword,
+    },
+  });
+
+  const { password: _, ...userWithoutPassword } = user;
+  return NextResponse.json(
+    { message: 'Usuario creado exitosamente', user: userWithoutPassword },
+    { status: 201 }
+  );
+}
+```
+</CodeGroup>
+
+### Validation Rules
+
+The signup endpoint enforces the following validation rules:
+
+- **Required Fields**: name, email, password, and confirmPassword
+- **Password Match**: password and confirmPassword must be identical
+- **Minimum Length**: passwords must be at least 6 characters (line 26)
+- **Email Format**: valid email format using regex pattern (line 34)
+- **Unique Email**: email must not already exist in the database (line 43)
+
+<Note>
+Passwords are hashed using bcryptjs with a salt round of 10 before being stored in the database (line 55).
+</Note>
+
+## User Login
+
+The login flow authenticates users and creates secure session cookies.
+
+### Login Endpoint
+
+The login API route is located at `app/api/auth/login/route.ts:7`.
+
+<CodeGroup>
+```typescript app/api/auth/login/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+import bcrypt from "bcryptjs";
+import { serialize } from "cookie";
+import { randomUUID } from "crypto";
+
+export async function POST(request: NextRequest) {
+  const { email, password } = await request.json();
+
+  // Find user
+  const user = await prisma.user.findUnique({
+    where: { email },
+  });
+
+  if (!user) {
+    return NextResponse.json(
+      { error: "Email o contraseña incorrectos" },
+      { status: 401 }
+    );
+  }
+
+  // Verify password
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+
+  if (!isPasswordValid) {
+    return NextResponse.json(
+      { error: "Email o contraseña incorrectos" },
+      { status: 401 }
+    );
+  }
+
+  // Generate session token
+  const sessionToken = randomUUID();
+
+  // Update user with new token (invalidates previous sessions)
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { sessionToken },
+  });
+
+  const response = NextResponse.json(
+    { message: "Inicio de sesión exitoso", user },
+    { status: 200 }
+  );
+
+  // Set session cookies
+  response.cookies.set("userId", user.id.toString(), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 60 * 60 * 24 * 7, // 7 days
+    path: "/",
+  });
+
+  response.cookies.set("sessionToken", sessionToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 60 * 60 * 24 * 7,
+    path: "/",
+  });
+
+  return response;
+}
+```
+</CodeGroup>
+
+### Session Token Generation
+
+When a user logs in successfully:
+
+1. **Token Creation**: A unique session token is generated using `randomUUID()` (line 45)
+2. **Database Update**: The token is stored in the user's database record (line 48)
+3. **Cookie Storage**: Three cookies are set:
+   - `userId`: The user's ID (httpOnly, secure in production)
+   - `sessionToken`: The UUID session token (httpOnly, secure in production)
+   - `userName`: The user's name (accessible to client-side JavaScript)
+
+<Warning>
+All cookies use `httpOnly: true` (except userName) to prevent XSS attacks. The `secure` flag is enabled in production to require HTTPS.
+</Warning>
+
+### Session Invalidation
+
+Each new login invalidates previous sessions by updating the `sessionToken` in the database (line 48-51). This ensures only the most recent login session is valid.
+
+## Password Encryption
+
+SameVibe uses [bcryptjs](https://www.npmjs.com/package/bcryptjs) for password hashing:
+
+<Tabs>
+  <Tab title="Hashing">
+    ```typescript
+    // During signup - line 55
+    const hashedPassword = await bcrypt.hash(password, 10);
+    ```
+    
+    The salt round of `10` provides a good balance between security and performance.
+  </Tab>
+  <Tab title="Verification">
+    ```typescript
+    // During login - line 32
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    ```
+    
+    The `compare` function safely checks the password against the stored hash.
+  </Tab>
+</Tabs>
+
+## Protected Routes
+
+Routes are protected using Next.js middleware. See [Sessions](/features/sessions) for details on middleware protection.
+
+### Middleware Configuration
+
+The middleware checks for valid session cookies and redirects unauthorized users to the login page. It's configured in `middleware.ts:4`.
+
+```typescript
+const userId = request.cookies.get("userId")?.value;
+
+if (!userId && !isPublicPath) {
+  return NextResponse.redirect(new URL("/login", request.url));
+}
+```
+
+## User Schema
+
+The User model is defined in the Prisma schema:
+
+```prisma prisma/schema.prisma
+model User {
+  id           Int     @id @default(autoincrement())
+  email        String  @unique
+  password     String
+  name         String?
+  sessionToken String? @unique
+  posts        Post[]
+}
+```
+
+### Fields
+
+- `id`: Auto-incrementing primary key
+- `email`: Unique user email address
+- `password`: Bcrypt-hashed password
+- `name`: Optional display name
+- `sessionToken`: UUID token for current session
+- `posts`: Relation to user's posts
+
+## Security Best Practices
+
+<AccordionGroup>
+  <Accordion title="Password never returned in responses">
+    User responses always exclude the password field:
+    ```typescript
+    const { password: _, ...userWithoutPassword } = user;
+    return NextResponse.json({ user: userWithoutPassword });
+    ```
+  </Accordion>
+  
+  <Accordion title="Generic error messages">
+    Login errors use generic messages to prevent username enumeration:
+    ```typescript
+    { error: "Email o contraseña incorrectos" }
+    ```
+  </Accordion>
+  
+  <Accordion title="httpOnly cookies">
+    Session cookies use `httpOnly: true` to prevent XSS attacks from accessing tokens.
+  </Accordion>
+  
+  <Accordion title="HTTPS in production">
+    The `secure` flag ensures cookies are only sent over HTTPS in production environments.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Sessions" icon="clock" href="/features/sessions">
+    Learn about session management and middleware protection
+  </Card>
+  <Card title="Posts" icon="file-lines" href="/features/posts">
+    Explore post creation and management features
+  </Card>
+</CardGroup>

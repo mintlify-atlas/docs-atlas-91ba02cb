@@ -1,0 +1,113 @@
+---
+title: "Log In"
+description: "Authenticate a user and create a session"
+---
+
+## POST /api/auth/login
+
+Authenticates a user with email and password credentials. On success, sets secure HTTP-only cookies for session management.
+
+### Request Body
+
+<ParamField body="email" type="string" required>
+  The user's email address
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The user's password
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message confirming authentication
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  The authenticated user object (without password)
+  
+  <ResponseField name="id" type="number">
+    Unique user identifier
+  </ResponseField>
+  
+  <ResponseField name="name" type="string">
+    User's display name
+  </ResponseField>
+  
+  <ResponseField name="email" type="string">
+    User's email address
+  </ResponseField>
+  
+  <ResponseField name="createdAt" type="string">
+    ISO 8601 timestamp of account creation
+  </ResponseField>
+</ResponseField>
+
+### Cookies Set
+
+The following cookies are automatically set on successful login:
+
+- **userId** (HttpOnly, Secure, 7 days) - User's unique identifier
+- **sessionToken** (HttpOnly, Secure, 7 days) - Unique session token (invalidates previous sessions)
+- **userName** (Secure, 7 days) - User's display name
+
+### Example Request
+
+```bash
+curl -X POST https://api.samevibe.com/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "john@example.com",
+    "password": "securepass123"
+  }'
+```
+
+### Example Response
+
+<ResponseExample>
+```json Success (200)
+{
+  "message": "Inicio de sesión exitoso",
+  "user": {
+    "id": 123,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "createdAt": "2026-03-06T10:30:00.000Z"
+  }
+}
+```
+
+```json Missing Credentials (400)
+{
+  "error": "Email y contraseña son requeridos"
+}
+```
+
+```json Invalid Credentials (401)
+{
+  "error": "Email o contraseña incorrectos"
+}
+```
+
+```json Server Error (500)
+{
+  "error": "Error al iniciar sesión"
+}
+```
+</ResponseExample>
+
+### Error Codes
+
+| Status Code | Description |
+|-------------|-------------|
+| 200 | Login successful, session cookies set |
+| 400 | Missing email or password |
+| 401 | Invalid credentials |
+| 500 | Internal server error |
+
+### Notes
+
+- Passwords are verified using bcrypt comparison
+- A new session token is generated on each login, invalidating previous sessions
+- Session cookies are valid for 7 days
+- In production, cookies are set with the `Secure` flag (HTTPS only)

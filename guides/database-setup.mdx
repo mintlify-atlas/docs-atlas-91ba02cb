@@ -1,0 +1,553 @@
+---
+title: Database Setup
+description: Complete guide to setting up PostgreSQL and managing your database with Prisma
+icon: database
+---
+
+## Overview
+
+SameVibe uses PostgreSQL as its database system and Prisma as the ORM (Object-Relational Mapping) tool. This guide covers everything from initial database setup to running migrations and troubleshooting common issues.
+
+## PostgreSQL Installation
+
+Before setting up SameVibe's database, you need PostgreSQL installed on your system.
+
+<Tabs>
+  <Tab title="macOS">
+    Install PostgreSQL using Homebrew:
+
+    ```bash
+    brew install postgresql@15
+    brew services start postgresql@15
+    ```
+
+    Verify the installation:
+
+    ```bash
+    psql --version
+    ```
+  </Tab>
+
+  <Tab title="Ubuntu/Debian">
+    Install PostgreSQL using apt:
+
+    ```bash
+    sudo apt update
+    sudo apt install postgresql postgresql-contrib
+    sudo systemctl start postgresql
+    sudo systemctl enable postgresql
+    ```
+
+    Verify the installation:
+
+    ```bash
+    psql --version
+    ```
+  </Tab>
+
+  <Tab title="Windows">
+    Download and install PostgreSQL from the [official website](https://www.postgresql.org/download/windows/).
+
+    After installation, verify in PowerShell:
+
+    ```powershell
+    psql --version
+    ```
+  </Tab>
+
+  <Tab title="Docker">
+    Run PostgreSQL in a Docker container:
+
+    ```bash
+    docker run --name samevibe-postgres \
+      -e POSTGRES_PASSWORD=yourpassword \
+      -e POSTGRES_DB=samevibe \
+      -p 5432:5432 \
+      -d postgres:15
+    ```
+
+    Verify the container is running:
+
+    ```bash
+    docker ps
+    ```
+  </Tab>
+</Tabs>
+
+## Database Creation
+
+<Steps>
+  <Step title="Access PostgreSQL">
+    Connect to PostgreSQL as the default user:
+
+    ```bash
+    psql -U postgres
+    ```
+
+    Or on Ubuntu/Debian:
+
+    ```bash
+    sudo -u postgres psql
+    ```
+  </Step>
+
+  <Step title="Create Database and User">
+    Create a dedicated database and user for SameVibe:
+
+    ```sql
+    CREATE DATABASE samevibe;
+    CREATE USER samevibe_user WITH PASSWORD 'your_secure_password';
+    GRANT ALL PRIVILEGES ON DATABASE samevibe TO samevibe_user;
+    ```
+
+    <Warning>
+      Use a strong, unique password for production environments.
+    </Warning>
+  </Step>
+
+  <Step title="Grant Schema Permissions">
+    Connect to the new database and grant schema permissions:
+
+    ```sql
+    \c samevibe
+    GRANT ALL ON SCHEMA public TO samevibe_user;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO samevibe_user;
+    ```
+  </Step>
+
+  <Step title="Verify Connection">
+    Test the connection with the new user:
+
+    ```bash
+    psql -U samevibe_user -d samevibe -h localhost
+    ```
+
+    If successful, you'll see the PostgreSQL prompt.
+  </Step>
+</Steps>
+
+## Database Connection String
+
+After creating your database, configure the connection string in your `.env` file:
+
+```bash .env
+DATABASE_URL="postgresql://samevibe_user:your_secure_password@localhost:5432/samevibe"
+```
+
+### Connection String Components
+
+```
+postgresql://[username]:[password]@[host]:[port]/[database]?[options]
+```
+
+| Component | Description | Example |
+|-----------|-------------|----------|
+| `username` | Database user | `samevibe_user` |
+| `password` | User password | `your_secure_password` |
+| `host` | Server hostname or IP | `localhost`, `db.example.com` |
+| `port` | PostgreSQL port | `5432` (default) |
+| `database` | Database name | `samevibe` |
+| `options` | Connection options | `sslmode=require&connect_timeout=10` |
+
+### Connection String Examples
+
+<CodeGroup>
+  ```bash Local Development
+  DATABASE_URL="postgresql://samevibe_user:password@localhost:5432/samevibe"
+  ```
+
+  ```bash Remote with SSL
+  DATABASE_URL="postgresql://user:pass@db.example.com:5432/samevibe?sslmode=require"
+  ```
+
+  ```bash Connection Pooling
+  DATABASE_URL="postgresql://user:pass@localhost:5432/samevibe?connection_limit=10&pool_timeout=10"
+  ```
+
+  ```bash Docker Container
+  DATABASE_URL="postgresql://postgres:password@host.docker.internal:5432/samevibe"
+  ```
+</CodeGroup>
+
+## Prisma Schema Overview
+
+SameVibe's database schema is defined in `prisma/schema.prisma`. Understanding this schema is crucial for working with the database.
+
+### Schema Configuration
+
+```prisma prisma/schema.prisma
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+```
+
+**Configuration Details:**
+
+- **Generator**: Creates a type-safe Prisma Client in `src/generated/client/`
+- **Provider**: Specifies PostgreSQL as the database
+- **URL**: Reads connection string from `DATABASE_URL` environment variable
+
+### Data Models
+
+#### User Model
+
+```prisma
+model User {
+  id           Int     @id @default(autoincrement())
+  email        String  @unique
+  password     String
+  name         String?
+  sessionToken String? @unique
+  posts        Post[]
+}
+```
+
+**Fields:**
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| `id` | `Int` | Primary key, auto-increment | Unique user identifier |
+| `email` | `String` | Unique | User email address |
+| `password` | `String` | Required | Hashed password (using bcryptjs) |
+| `name` | `String?` | Optional | User display name |
+| `sessionToken` | `String?` | Optional, unique | Authentication session token |
+| `posts` | `Post[]` | Relation | All posts by this user |
+
+#### Post Model
+
+```prisma
+model Post {
+  id        Int     @id @default(autoincrement())
+  title     String
+  content   String?
+  published Boolean @default(false)
+  authorId  Int
+  author    User    @relation(fields: [authorId], references: [id])
+}
+```
+
+**Fields:**
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| `id` | `Int` | Primary key, auto-increment | Unique post identifier |
+| `title` | `String` | Required | Post title |
+| `content` | `String?` | Optional | Post content/body |
+| `published` | `Boolean` | Default: false | Publication status |
+| `authorId` | `Int` | Foreign key | References user ID |
+| `author` | `User` | Relation | Post author |
+
+<Info>
+  The `User` and `Post` models have a one-to-many relationship: one user can have multiple posts, but each post belongs to exactly one user.
+</Info>
+
+## Running Migrations
+
+Prisma provides several commands for managing your database schema.
+
+### Generate Prisma Client
+
+Generate the type-safe Prisma Client after any schema changes:
+
+```bash
+npx prisma generate
+```
+
+This creates the Prisma Client in `src/generated/client/` based on your schema.
+
+<Tip>
+  Run `prisma generate` after every schema change to update your client types.
+</Tip>
+
+### Push Schema Changes
+
+For development, push schema changes directly to the database:
+
+```bash
+npx prisma db push
+```
+
+**What it does:**
+- Creates tables if they don't exist
+- Adds new columns
+- Updates existing columns
+- Creates indexes and constraints
+
+<Warning>
+  `db push` is ideal for development but doesn't create migration history. Use migrations for production.
+</Warning>
+
+### Create Migrations
+
+For production, create migration files:
+
+```bash
+npx prisma migrate dev --name init
+```
+
+This command:
+1. Generates a migration file in `prisma/migrations/`
+2. Applies the migration to your database
+3. Generates the Prisma Client
+
+**Subsequent migrations:**
+
+```bash
+npx prisma migrate dev --name add_user_bio
+```
+
+### Apply Migrations in Production
+
+Deploy migrations to production:
+
+```bash
+npx prisma migrate deploy
+```
+
+This applies all pending migrations without prompting.
+
+### Database Management Commands
+
+<CodeGroup>
+  ```bash View Database
+  npx prisma studio
+  ```
+
+  ```bash Pull Schema
+  npx prisma db pull
+  ```
+
+  ```bash Validate Schema
+  npx prisma validate
+  ```
+
+  ```bash Reset Database
+  npx prisma migrate reset
+  ```
+
+  ```bash Seed Database
+  npx prisma db seed
+  ```
+</CodeGroup>
+
+## Prisma Studio
+
+Prisma Studio provides a visual interface for your database:
+
+```bash
+npx prisma studio
+```
+
+This opens a browser window at `http://localhost:5555` where you can:
+- View and edit records
+- Create new entries
+- Delete records
+- Explore relationships
+- Filter and search data
+
+<Tip>
+  Prisma Studio is excellent for debugging and testing database operations during development.
+</Tip>
+
+## Database Seeding
+
+The `prisma.config.ts` file specifies a seed command:
+
+```typescript
+migrations: {
+  path: "prisma/migrations",
+  seed: `tsx prisma/seeds.ts`,
+}
+```
+
+Create a `prisma/seeds.ts` file to populate your database with initial data:
+
+```typescript prisma/seeds.ts
+import { PrismaClient } from '../src/generated/client';
+import bcrypt from 'bcryptjs';
+
+const prisma = new PrismaClient();
+
+async function main() {
+  // Hash password
+  const hashedPassword = await bcrypt.hash('password123', 10);
+
+  // Create users
+  const user1 = await prisma.user.create({
+    data: {
+      email: 'alice@example.com',
+      password: hashedPassword,
+      name: 'Alice',
+      posts: {
+        create: [
+          {
+            title: 'My First Post',
+            content: 'This is my first post on SameVibe!',
+            published: true,
+          },
+          {
+            title: 'Draft Post',
+            content: 'This is a draft.',
+            published: false,
+          },
+        ],
+      },
+    },
+  });
+
+  console.log('Database seeded successfully!');
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
+```
+
+Run the seed:
+
+```bash
+npx prisma db seed
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Connection refused">
+    **Error:** `Error: connect ECONNREFUSED 127.0.0.1:5432`
+
+    **Solutions:**
+    1. Verify PostgreSQL is running:
+       ```bash
+       pg_isready
+       ```
+    2. Check PostgreSQL service:
+       ```bash
+       sudo systemctl status postgresql
+       ```
+    3. Verify port 5432 is open:
+       ```bash
+       netstat -an | grep 5432
+       ```
+  </Accordion>
+
+  <Accordion title="Authentication failed">
+    **Error:** `Error: Authentication failed for user`
+
+    **Solutions:**
+    1. Verify credentials in your `DATABASE_URL`
+    2. Check PostgreSQL user exists:
+       ```sql
+       SELECT usename FROM pg_user;
+       ```
+    3. Reset user password:
+       ```sql
+       ALTER USER samevibe_user WITH PASSWORD 'new_password';
+       ```
+  </Accordion>
+
+  <Accordion title="Database does not exist">
+    **Error:** `Error: Database "samevibe" does not exist`
+
+    **Solutions:**
+    1. Create the database:
+       ```sql
+       CREATE DATABASE samevibe;
+       ```
+    2. Verify database exists:
+       ```sql
+       \l
+       ```
+  </Accordion>
+
+  <Accordion title="Permission denied for schema public">
+    **Error:** `Error: Permission denied for schema public`
+
+    **Solutions:**
+    1. Grant schema permissions:
+       ```sql
+       GRANT ALL ON SCHEMA public TO samevibe_user;
+       ```
+    2. Grant table permissions:
+       ```sql
+       GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO samevibe_user;
+       ```
+  </Accordion>
+
+  <Accordion title="Prisma Client not generated">
+    **Error:** `Cannot find module '@prisma/client'`
+
+    **Solutions:**
+    1. Generate Prisma Client:
+       ```bash
+       npx prisma generate
+       ```
+    2. Check the output path in `schema.prisma`
+    3. Restart your development server
+  </Accordion>
+
+  <Accordion title="Migration conflicts">
+    **Error:** `Migration conflict detected`
+
+    **Solutions:**
+    1. For development, reset migrations:
+       ```bash
+       npx prisma migrate reset
+       ```
+    2. For production, resolve conflicts manually
+    3. Create a new migration to fix inconsistencies
+  </Accordion>
+</AccordionGroup>
+
+## Database Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Connection Management" icon="plug">
+    - Use connection pooling in production
+    - Set appropriate connection limits
+    - Configure timeouts properly
+    - Close connections gracefully
+  </Card>
+
+  <Card title="Security" icon="shield">
+    - Use strong database passwords
+    - Enable SSL for remote connections
+    - Limit database user privileges
+    - Never commit credentials
+  </Card>
+
+  <Card title="Performance" icon="gauge">
+    - Add indexes for frequently queried fields
+    - Use database views for complex queries
+    - Monitor query performance
+    - Optimize N+1 queries
+  </Card>
+
+  <Card title="Maintenance" icon="wrench">
+    - Regular backups
+    - Monitor database size
+    - Clean up old data
+    - Update PostgreSQL regularly
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="code" href="/api/posts/overview">
+    Learn how to use the SameVibe API
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/guides/deployment">
+    Deploy your application with database migrations
+  </Card>
+</CardGroup>

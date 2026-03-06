@@ -1,0 +1,103 @@
+---
+title: "Welcome to SameVibe"
+description: "A modern micro-blogging platform for sharing stories, experiences, and connecting with others through shared vibes"
+---
+
+<img
+  className="block"
+  src="https://media.brand.dev/288cc7c4-5cef-4376-950b-bdf0083eedae.png"
+  alt="SameVibe Logo"
+  style={{ width: '120px', margin: '0 auto 2rem' }}
+/>
+
+## What is SameVibe?
+
+SameVibe is a full-stack micro-blogging platform built with modern web technologies. It allows users to share their stories, anecdotes, and experiences with a vibrant community. With a sleek, responsive interface and powerful features, SameVibe makes it easy to connect and engage with others who share your vibe.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get SameVibe running locally in under 5 minutes
+  </Card>
+  <Card title="Features" icon="sparkles" href="/features/authentication">
+    Explore authentication, posts, and UI components
+  </Card>
+  <Card title="Installation Guide" icon="download" href="/guides/installation">
+    Complete setup instructions and dependencies
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/auth/signup">
+    Detailed API endpoint documentation
+  </Card>
+</CardGroup>
+
+## Key Features
+
+<AccordionGroup>
+  <Accordion title="🔐 Secure Authentication" icon="lock">
+    User registration and login with bcrypt password encryption. Session tokens are stored securely with automatic invalidation on new logins.
+  </Accordion>
+  
+  <Accordion title="✍️ Post Management" icon="pen">
+    Create, read, and explore posts from the community. Each post includes rich content support with title and body text.
+  </Accordion>
+  
+  <Accordion title="🛡️ Protected Routes" icon="shield">
+    Custom Next.js middleware ensures authenticated-only access to protected pages, with automatic redirects for unauthenticated users.
+  </Accordion>
+  
+  <Accordion title="🎨 Modern UI" icon="palette">
+    Built with Tailwind CSS, featuring glassmorphism effects, dark mode support, and a fully responsive design that works on all devices.
+  </Accordion>
+  
+  <Accordion title="⚡ Performance" icon="bolt">
+    Powered by Next.js 16 with App Router, React 19, and optimized database queries through Prisma ORM.
+  </Accordion>
+</AccordionGroup>
+
+## Tech Stack
+
+SameVibe is built with a cutting-edge technology stack designed for performance, developer experience, and scalability:
+
+- **Framework**: [Next.js 16](https://nextjs.org/) with App Router
+- **UI Library**: [React 19](https://react.dev/)
+- **Styling**: [Tailwind CSS 4](https://tailwindcss.com/)
+- **Database**: PostgreSQL with [Prisma ORM](https://www.prisma.io/)
+- **UI Components**: [Radix UI](https://www.radix-ui.com/) primitives
+- **Icons**: [Lucide React](https://lucide.dev/)
+- **Authentication**: bcryptjs for password hashing
+
+## Getting Started
+
+Ready to dive in? Here's how to get started:
+
+<Steps>
+  <Step title="Review Prerequisites">
+    Make sure you have Node.js 18+ and PostgreSQL installed on your system.
+  </Step>
+  
+  <Step title="Follow the Quickstart">
+    Our [quickstart guide](/quickstart) will have you up and running in minutes with a working local instance.
+  </Step>
+  
+  <Step title="Configure Your Database">
+    Set up your PostgreSQL connection and run Prisma migrations following our [database setup guide](/guides/database-setup).
+  </Step>
+  
+  <Step title="Explore the Features">
+    Learn about authentication, posts, sessions, and UI components in the Features section.
+  </Step>
+</Steps>
+
+## Community & Support
+
+<CardGroup cols={2}>
+  <Card title="GitHub Repository" icon="github" href="https://github.com/jupaorba/same-vibe">
+    View source code, report issues, and contribute
+  </Card>
+  <Card title="API Documentation" icon="book" href="/api/posts/overview">
+    Complete REST API reference for developers
+  </Card>
+</CardGroup>
+
+<Note>
+  SameVibe is an open-source project. Contributions, feedback, and bug reports are welcome!
+</Note>

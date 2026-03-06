@@ -1,0 +1,359 @@
+---
+title: Configuration
+description: Comprehensive guide to configuring SameVibe including environment variables, Prisma, Next.js, and styling
+icon: gear
+---
+
+## Overview
+
+SameVibe uses multiple configuration files to manage different aspects of the application. This guide covers all configuration options and best practices.
+
+## Environment Variables
+
+Environment variables are stored in a `.env` file in the root directory and control database connections and application behavior.
+
+### Database Configuration
+
+The primary environment variable required for SameVibe:
+
+```bash .env
+DATABASE_URL="postgresql://username:password@localhost:5432/samevibe"
+```
+
+<Info>
+  The `DATABASE_URL` is used by both Prisma and the application runtime to connect to your PostgreSQL database.
+</Info>
+
+### Connection String Format
+
+The PostgreSQL connection string follows this format:
+
+```
+postgresql://[user]:[password]@[host]:[port]/[database]?[parameters]
+```
+
+**Components:**
+- `user` - PostgreSQL username
+- `password` - User password
+- `host` - Database host (e.g., `localhost`, `db.example.com`)
+- `port` - Port number (default: `5432`)
+- `database` - Database name
+- `parameters` - Optional connection parameters (e.g., `sslmode=require`)
+
+### Environment-Specific Variables
+
+<CodeGroup>
+  ```bash Development
+  DATABASE_URL="postgresql://dev_user:dev_pass@localhost:5432/samevibe_dev"
+  NODE_ENV="development"
+  ```
+
+  ```bash Production
+  DATABASE_URL="postgresql://prod_user:prod_pass@production-host:5432/samevibe_prod?sslmode=require"
+  NODE_ENV="production"
+  ```
+
+  ```bash Testing
+  DATABASE_URL="postgresql://test_user:test_pass@localhost:5432/samevibe_test"
+  NODE_ENV="test"
+  ```
+</CodeGroup>
+
+<Warning>
+  **Security Best Practices:**
+  - Never commit `.env` files to version control
+  - Use strong, unique passwords for production databases
+  - Enable SSL for production database connections
+  - Rotate credentials regularly
+</Warning>
+
+## Prisma Configuration
+
+Prisma is configured through two main files: `prisma.config.ts` and `prisma/schema.prisma`.
+
+### Prisma Config File
+
+The `prisma.config.ts` file defines Prisma's behavior and tooling configuration:
+
+```typescript prisma.config.ts
+import "dotenv/config";
+import { defineConfig, env } from "prisma/config";
+
+export default defineConfig({
+  schema: "prisma/schema.prisma",
+  migrations: {
+    path: "prisma/migrations",
+    seed: `tsx prisma/seeds.ts`,
+  },
+  engine: "classic",
+  datasource: {
+    url: env("DATABASE_URL"),
+  },
+});
+```
+
+**Configuration Options:**
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `schema` | `prisma/schema.prisma` | Location of Prisma schema file |
+| `migrations.path` | `prisma/migrations` | Migration files directory |
+| `migrations.seed` | `tsx prisma/seeds.ts` | Database seeding command |
+| `engine` | `classic` | Prisma engine type |
+| `datasource.url` | `env("DATABASE_URL")` | Database connection from env |
+
+### Prisma Schema
+
+The `prisma/schema.prisma` file defines your data model:
+
+```prisma prisma/schema.prisma
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int     @id @default(autoincrement())
+  email        String  @unique
+  password     String
+  name         String?
+  sessionToken String? @unique
+  posts        Post[]
+}
+
+model Post {
+  id        Int     @id @default(autoincrement())
+  title     String
+  content   String?
+  published Boolean @default(false)
+  authorId  Int
+  author    User    @relation(fields: [authorId], references: [id])
+}
+```
+
+<Tip>
+  The `generator client` output path is set to `../src/generated/client`, meaning your Prisma Client will be generated at `src/generated/client/` instead of the default `node_modules/@prisma/client`.
+</Tip>
+
+**Key Schema Configurations:**
+
+1. **Generator Output**: Custom path for type-safe Prisma Client
+2. **Provider**: PostgreSQL as the database system
+3. **Environment Variable**: Reads `DATABASE_URL` from `.env`
+
+## Next.js Configuration
+
+The `next.config.ts` file configures Next.js framework behavior:
+
+```typescript next.config.ts
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  allowedDevOrigins: ["192.168.1.4"],
+};
+
+export default nextConfig;
+```
+
+### Configuration Options
+
+**Current Settings:**
+
+| Option | Value | Purpose |
+|--------|-------|----------|
+| `allowedDevOrigins` | `["192.168.1.4"]` | Allows development server access from specific IP addresses |
+
+### Common Next.js Config Options
+
+You may want to add these options based on your needs:
+
+```typescript next.config.ts
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  allowedDevOrigins: ["192.168.1.4"],
+  
+  // Enable React strict mode
+  reactStrictMode: true,
+  
+  // Image optimization
+  images: {
+    domains: ['example.com'],
+  },
+  
+  // Custom headers
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'X-DNS-Prefetch-Control',
+            value: 'on'
+          }
+        ],
+      },
+    ]
+  },
+};
+
+export default nextConfig;
+```
+
+## Tailwind CSS Configuration
+
+SameVibe uses Tailwind CSS 4 with a modern configuration approach through CSS imports.
+
+### PostCSS Configuration
+
+The `postcss.config.mjs` file enables Tailwind CSS processing:
+
+```javascript postcss.config.mjs
+const config = {
+  plugins: {
+    "@tailwindcss/postcss": {},
+  },
+};
+
+export default config;
+```
+
+### Global Styles
+
+Tailwind is imported in `app/globals.css` along with custom theme configuration:
+
+```css app/globals.css
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --radius-lg: var(--radius);
+  /* ... additional theme tokens ... */
+}
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(0.147 0.004 49.25);
+  --foreground: oklch(0.985 0.001 106.423);
+  /* ... color system ... */
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+```
+
+**Key Features:**
+
+1. **Tailwind CSS 4 Import**: Modern `@import "tailwindcss"` syntax
+2. **Custom Theme**: Design tokens for colors, spacing, and typography
+3. **Dark Mode Support**: Custom variant for dark mode styling
+4. **Animation Library**: `tw-animate-css` for advanced animations
+5. **Color System**: OKLCH color space for better color consistency
+
+### Customizing the Theme
+
+To modify colors, spacing, or other design tokens, edit the CSS custom properties in `app/globals.css`:
+
+```css
+:root {
+  --radius: 0.625rem;        /* Border radius */
+  --background: oklch(...);   /* Background color */
+  --primary: oklch(...);      /* Primary brand color */
+}
+```
+
+<Info>
+  Tailwind CSS 4 uses a CSS-first configuration approach instead of `tailwind.config.js`. All customization is done through CSS custom properties and the `@theme` directive.
+</Info>
+
+## TypeScript Configuration
+
+SameVibe is built with TypeScript 5 for type safety. While there's no custom `tsconfig.json` shown, Next.js provides sensible defaults.
+
+### Recommended TypeScript Settings
+
+For optimal development experience, ensure your `tsconfig.json` includes:
+
+```json tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["DOM", "DOM.Iterable", "ES2020"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules"]
+}
+```
+
+## Configuration Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Environment Variables" icon="key">
+    - Use `.env.local` for local overrides
+    - Document all required variables
+    - Validate variables at startup
+    - Never commit secrets
+  </Card>
+
+  <Card title="Database Config" icon="database">
+    - Use connection pooling in production
+    - Enable SSL for remote connections
+    - Set appropriate timeouts
+    - Configure connection limits
+  </Card>
+
+  <Card title="Build Optimization" icon="rocket">
+    - Enable React strict mode
+    - Configure image optimization
+    - Set up proper caching headers
+    - Minimize bundle size
+  </Card>
+
+  <Card title="Development" icon="code">
+    - Use TypeScript strict mode
+    - Enable source maps
+    - Configure hot reload
+    - Set up debugging tools
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Database Setup" icon="database" href="/guides/database-setup">
+    Learn how to set up and manage your PostgreSQL database
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/guides/deployment">
+    Deploy your configured application to production
+  </Card>
+</CardGroup>

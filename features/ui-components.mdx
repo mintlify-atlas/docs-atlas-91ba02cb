@@ -1,0 +1,730 @@
+---
+title: UI Components
+description: Radix UI primitives, custom components, and Tailwind CSS styling system
+icon: palette
+---
+
+SameVibe uses a modern UI component system built on Radix UI primitives, styled with Tailwind CSS, featuring glassmorphism effects and dark mode support.
+
+## Component Architecture
+
+The UI system consists of three layers:
+
+1. **Radix UI Primitives**: Unstyled, accessible component primitives
+2. **Base Components**: Styled wrappers in `components/ui/`
+3. **Custom Components**: Application-specific components in `components/`
+
+## Radix UI Primitives
+
+SameVibe uses Radix UI for accessible, unstyled component primitives:
+
+```json package.json
+{
+  "dependencies": {
+    "@radix-ui/react-alert-dialog": "^1.1.15",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-slot": "^1.2.4"
+  }
+}
+```
+
+### Radix Components Used
+
+<CardGroup cols={2}>
+  <Card title="Alert Dialog" icon="triangle-exclamation">
+    Used for delete confirmations and critical actions
+  </Card>
+  <Card title="Dropdown Menu" icon="bars">
+    User profile menu and navigation options
+  </Card>
+  <Card title="Slot" icon="puzzle-piece">
+    Polymorphic component composition
+  </Card>
+</CardGroup>
+
+<Note>
+Radix UI provides accessible, WAI-ARIA compliant components out of the box.
+</Note>
+
+## Base UI Components
+
+Base components are located in `components/ui/` and provide styled implementations of common UI elements.
+
+### Button Component
+
+The Button component uses `class-variance-authority` for variant management.
+
+<CodeGroup>
+```typescript components/ui/button.tsx
+import * as React from "react"
+import { Slot } from "@radix-ui/react-slot"
+import { cva, type VariantProps } from "class-variance-authority"
+import { cn } from "@/lib/utils"
+
+const buttonVariants = cva(
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        destructive: "bg-destructive text-white hover:bg-destructive/90",
+        outline: "border bg-background shadow-xs hover:bg-accent",
+        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
+      },
+      size: {
+        default: "h-9 px-4 py-2",
+        sm: "h-8 rounded-md gap-1.5 px-3",
+        lg: "h-10 rounded-md px-6",
+        icon: "size-9",
+        "icon-sm": "size-8",
+        "icon-lg": "size-10",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+)
+
+function Button({
+  className,
+  variant,
+  size,
+  asChild = false,
+  ...props
+}: React.ComponentProps<"button"> &
+  VariantProps<typeof buttonVariants> & {
+    asChild?: boolean
+  }) {
+  const Comp = asChild ? Slot : "button"
+
+  return (
+    <Comp
+      className={cn(buttonVariants({ variant, size, className }))}
+      {...props}
+    />
+  )
+}
+
+export { Button, buttonVariants }
+```
+</CodeGroup>
+
+#### Button Variants
+
+<Tabs>
+  <Tab title="Variants">
+    - `default`: Primary button with background
+    - `destructive`: Red button for dangerous actions
+    - `outline`: Bordered button with transparent background
+    - `secondary`: Secondary style with muted colors
+    - `ghost`: Transparent button with hover effect
+    - `link`: Text button with underline
+  </Tab>
+  <Tab title="Sizes">
+    - `default`: Standard button (h-9)
+    - `sm`: Small button (h-8)
+    - `lg`: Large button (h-10)
+    - `icon`: Square icon button (size-9)
+    - `icon-sm`: Small icon button (size-8)
+    - `icon-lg`: Large icon button (size-10)
+  </Tab>
+  <Tab title="Usage">
+    ```tsx
+    <Button variant="default" size="lg">
+      Publicar
+    </Button>
+    
+    <Button variant="ghost" size="icon">
+      <LogOut className="h-5 w-5" />
+    </Button>
+    
+    <Button variant="outline">
+      Cancelar
+    </Button>
+    ```
+  </Tab>
+</Tabs>
+
+### Card Component
+
+The Card component provides a container with consistent styling.
+
+<CodeGroup>
+```typescript components/ui/card.tsx
+import * as React from "react"
+import { cn } from "@/lib/utils"
+
+function Card({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      className={cn(
+        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      className={cn(
+        "@container/card-header grid auto-rows-min items-start gap-2 px-6",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      className={cn("leading-none font-semibold", className)}
+      {...props}
+    />
+  )
+}
+
+function CardContent({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      className={cn("px-6", className)}
+      {...props}
+    />
+  )
+}
+
+export { Card, CardHeader, CardTitle, CardContent }
+```
+</CodeGroup>
+
+#### Card Sub-components
+
+- `Card`: Main container with rounded borders and shadow
+- `CardHeader`: Header section with grid layout
+- `CardTitle`: Title with semibold font
+- `CardContent`: Content area with horizontal padding
+- `CardFooter`: Footer section for actions
+- `CardDescription`: Muted text for descriptions
+- `CardAction`: Right-aligned action slot
+
+## Custom Components
+
+Application-specific components are located in the `components/` directory.
+
+### Navigation Component
+
+The Navigation component provides the main app navigation bar.
+
+<CodeGroup>
+```typescript components/Navigation.tsx
+"use client";
+
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
+
+export default function Navigation() {
+  return (
+    <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
+      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        <Link
+          href="/"
+          className="text-2xl font-bold text-foreground hover:text-primary transition"
+        >
+          SameVibe
+        </Link>
+
+        <div className="flex items-center gap-4">
+          <Link href="/posts">
+            <Button variant="ghost">Historias</Button>
+          </Link>
+          <Link href="/posts/new">
+            <Button variant="default">Publicar</Button>
+          </Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={async () => {
+              await fetch("/api/auth/logout", { method: "POST" });
+              window.location.href = "/login";
+            }}
+          >
+            <LogOut className="h-5 w-5" />
+          </Button>
+        </div>
+      </div>
+    </nav>
+  );
+}
+```
+</CodeGroup>
+
+#### Navigation Features
+
+- **Sticky Position**: Stays at top during scroll (line 9)
+- **Backdrop Blur**: Glassmorphism effect with `backdrop-blur` (line 9)
+- **Responsive Layout**: Flexbox with space-between (line 10)
+- **Icon Button**: Uses lucide-react icons (line 35)
+
+<Note>
+The Navigation component uses `"use client"` because it includes client-side event handlers for logout.
+</Note>
+
+### ProfileAside Component
+
+The ProfileAside component displays user information with animated text.
+
+<CodeGroup>
+```typescript components/ProfileAside.tsx
+"use client";
+
+import { Card } from "@/components/ui/card";
+import { AuroraText } from "@/components/ui/aurora-text";
+import { ShimmerButton } from "@/components/ui/shimmer-button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+interface ProfileAsideProps {
+  userName: string;
+}
+
+export function ProfileAside({ userName }: ProfileAsideProps) {
+  const customColors = [
+    "purple",
+    "deeppink",
+    "fuchsia",
+    "yellow",
+    "gold",
+  ];
+
+  return (
+    <>
+      {/* Desktop Version */}
+      <aside className="fixed right-8 top-32 w-80 hidden 2xl:block">
+        <Card className="p-6 backdrop-blur-md bg-background/80 border-primary/20 shadow-2xl">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-4xl font-bold">
+              <AuroraText speed={1} colors={customColors}>
+                {userName}
+              </AuroraText>
+            </h2>
+            <div className="h-5 w-5 rounded-full bg-green-500 animate-pulse" />
+          </div>
+
+          <ShimmerButton className="w-full">Ver perfil completo</ShimmerButton>
+        </Card>
+      </aside>
+
+      {/* Mobile Version */}
+      <div className="fixed right-4 top-24 2xl:hidden z-50">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex items-center gap-2 px-4 py-2 rounded-full bg-background/80 backdrop-blur-md">
+              <AuroraText speed={1} colors={customColors}>
+                {userName}
+              </AuroraText>
+              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-72 p-4">
+            <ShimmerButton className="w-full">Ver perfil completo</ShimmerButton>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </>
+  );
+}
+```
+</CodeGroup>
+
+#### ProfileAside Features
+
+- **Responsive Design**: Desktop sidebar and mobile dropdown
+- **Glassmorphism**: `backdrop-blur-md` with transparent background (line 30)
+- **Animated Text**: AuroraText with custom color gradient (line 33)
+- **Status Indicator**: Pulsing green dot (line 37)
+- **Custom Button**: ShimmerButton with animated shimmer effect (line 40)
+
+### Custom Animated Components
+
+SameVibe includes custom animated components for enhanced visual effects.
+
+#### AuroraText
+
+Animated gradient text with color cycling.
+
+<CodeGroup>
+```typescript components/ui/aurora-text.tsx
+"use client"
+
+import React, { memo } from "react"
+
+interface AuroraTextProps {
+  children: React.ReactNode
+  className?: string
+  colors?: string[]
+  speed?: number
+}
+
+export const AuroraText = memo(
+  ({
+    children,
+    className = "",
+    colors = ["#FF0080", "#7928CA", "#0070F3", "#38bdf8"],
+    speed = 1,
+  }: AuroraTextProps) => {
+    const gradientStyle = {
+      backgroundImage: `linear-gradient(135deg, ${colors.join(", ")}, ${
+        colors[0]
+      })`,
+      WebkitBackgroundClip: "text",
+      WebkitTextFillColor: "transparent",
+      animationDuration: `${10 / speed}s`,
+    }
+
+    return (
+      <span className={`relative inline-block ${className}`}>
+        <span className="sr-only">{children}</span>
+        <span
+          className="animate-aurora relative bg-[length:200%_auto] bg-clip-text text-transparent"
+          style={gradientStyle}
+        >
+          {children}
+        </span>
+      </span>
+    )
+  }
+)
+```
+</CodeGroup>
+
+**Props:**
+- `colors`: Array of color values for gradient
+- `speed`: Animation speed multiplier (default: 1)
+
+#### ShimmerButton
+
+Button with animated shimmer effect.
+
+<CodeGroup>
+```typescript components/ui/shimmer-button.tsx
+export interface ShimmerButtonProps extends ComponentPropsWithoutRef<"button"> {
+  shimmerColor?: string
+  shimmerSize?: string
+  borderRadius?: string
+  shimmerDuration?: string
+  background?: string
+}
+
+export const ShimmerButton = React.forwardRef<HTMLButtonElement, ShimmerButtonProps>(
+  ({
+    shimmerColor = "#ffffff",
+    shimmerSize = "0.05em",
+    shimmerDuration = "3s",
+    borderRadius = "100px",
+    background = "rgba(0, 0, 0, 1)",
+    className,
+    children,
+    ...props
+  }, ref) => {
+    return (
+      <button
+        style={{
+          "--shimmer-color": shimmerColor,
+          "--radius": borderRadius,
+          "--speed": shimmerDuration,
+          "--bg": background,
+        } as CSSProperties}
+        className={cn(
+          "group relative z-0 flex cursor-pointer items-center justify-center overflow-hidden [border-radius:var(--radius)] border border-white/10 px-6 py-3 whitespace-nowrap text-white [background:var(--bg)]",
+          className
+        )}
+        ref={ref}
+        {...props}
+      >
+        {children}
+      </button>
+    )
+  }
+)
+```
+</CodeGroup>
+
+**Props:**
+- `shimmerColor`: Color of the shimmer effect
+- `shimmerDuration`: Animation duration
+- `borderRadius`: Button border radius
+- `background`: Button background color
+
+## Tailwind CSS Styling
+
+SameVibe uses Tailwind CSS v4 with custom theme configuration.
+
+### Theme Configuration
+
+The theme is defined in `app/globals.css` using the new `@theme` directive:
+
+<CodeGroup>
+```css app/globals.css
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-card: var(--card);
+  /* ... more colors */
+  
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(0.147 0.004 49.25);
+  --foreground: oklch(0.985 0.001 106.423);
+  --card: oklch(0.216 0.006 56.043);
+  --primary: oklch(0.923 0.003 48.717);
+  /* ... more color values */
+}
+```
+</CodeGroup>
+
+### Color System
+
+SameVibe uses OKLCH color space for better color perception:
+
+<Tabs>
+  <Tab title="Background Colors">
+    - `background`: Main background (dark)
+    - `foreground`: Main text color (light)
+    - `card`: Card background
+    - `popover`: Popover background
+  </Tab>
+  <Tab title="Interactive Colors">
+    - `primary`: Primary brand color
+    - `secondary`: Secondary UI elements
+    - `accent`: Accent highlights
+    - `muted`: Muted text and backgrounds
+  </Tab>
+  <Tab title="Semantic Colors">
+    - `destructive`: Error and delete actions
+    - `border`: Border color
+    - `input`: Input field borders
+    - `ring`: Focus ring color
+  </Tab>
+</Tabs>
+
+<Note>
+OKLCH provides better perceptual uniformity than HSL or RGB, resulting in more consistent color relationships.
+</Note>
+
+### Glassmorphism Effects
+
+Glasmorphism is achieved using backdrop filters:
+
+```css
+/* Navigation bar */
+backdrop-blur
+bg-background/95
+supports-[backdrop-filter]:bg-background/60
+
+/* ProfileAside card */
+backdrop-blur-md
+bg-background/80
+```
+
+**Key Classes:**
+- `backdrop-blur`: Standard blur effect
+- `backdrop-blur-md`: Medium blur effect
+- `bg-{color}/{opacity}`: Transparent background
+- `supports-[backdrop-filter]:` Feature query for browser support
+
+### Dark Mode
+
+The application uses a dark theme by default with custom OKLCH colors:
+
+```css
+:root {
+  --background: oklch(0.147 0.004 49.25); /* Dark background */
+  --foreground: oklch(0.985 0.001 106.423); /* Light text */
+}
+```
+
+Dark mode is implemented at the CSS variable level using the `@custom-variant dark` directive:
+
+```css
+@custom-variant dark (&:is(.dark *));
+```
+
+### Custom Animations
+
+Custom animations are defined in the theme:
+
+<Tabs>
+  <Tab title="Aurora">
+    ```css
+    @keyframes aurora {
+      0% {
+        background-position: 0% 50%;
+        transform: rotate(-5deg) scale(0.9);
+      }
+      25% {
+        background-position: 50% 100%;
+        transform: rotate(5deg) scale(1.1);
+      }
+      50% {
+        background-position: 100% 50%;
+        transform: rotate(-3deg) scale(0.95);
+      }
+      75% {
+        background-position: 50% 0%;
+        transform: rotate(3deg) scale(1.05);
+      }
+      100% {
+        background-position: 0% 50%;
+        transform: rotate(-5deg) scale(0.9);
+      }
+    }
+    ```
+    
+    Used in AuroraText for animated gradient text.
+  </Tab>
+  <Tab title="Shimmer">
+    ```css
+    @keyframes shimmer-slide {
+      to {
+        transform: translate(calc(100cqw - 100%), 0);
+      }
+    }
+    
+    @keyframes spin-around {
+      0% { transform: translateZ(0) rotate(0); }
+      15%, 35% { transform: translateZ(0) rotate(90deg); }
+      65%, 85% { transform: translateZ(0) rotate(270deg); }
+      100% { transform: translateZ(0) rotate(360deg); }
+    }
+    ```
+    
+    Used in ShimmerButton for shimmer effect.
+  </Tab>
+  <Tab title="Marquee">
+    ```css
+    @keyframes marquee {
+      from { transform: translateX(0); }
+      to { transform: translateX(calc(-100% - var(--gap))); }
+    }
+    ```
+    
+    Used for scrolling text effects.
+  </Tab>
+</Tabs>
+
+## Utility Function
+
+The `cn` utility function combines Tailwind classes:
+
+```typescript lib/utils.ts
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+```
+
+**Usage:**
+```typescript
+className={cn(
+  "base-classes",
+  variant === "primary" && "primary-classes",
+  className // User-provided classes
+)}
+```
+
+The `cn` function:
+1. Uses `clsx` for conditional class names
+2. Uses `twMerge` to resolve conflicting Tailwind classes
+
+## Icon Library
+
+SameVibe uses [lucide-react](https://lucide.dev/) for icons:
+
+```tsx
+import { LogOut, FileText, User, Settings } from "lucide-react";
+
+<Button variant="ghost" size="icon">
+  <LogOut className="h-5 w-5" />
+</Button>
+```
+
+**Common Icons:**
+- `LogOut`: Logout button
+- `FileText`: Post/document icons
+- `User`: User profile icons
+- `Settings`: Settings icons
+
+## Component Patterns
+
+<AccordionGroup>
+  <Accordion title="Polymorphic Components">
+    Components like Button use the `asChild` prop with Radix Slot for polymorphism:
+    
+    ```tsx
+    <Button asChild>
+      <Link href="/posts">View Posts</Link>
+    </Button>
+    ```
+  </Accordion>
+  
+  <Accordion title="Client Components">
+    Components with interactivity use `"use client"` directive:
+    
+    ```tsx
+    "use client";
+    
+    export function InteractiveComponent() {
+      const [state, setState] = useState();
+      // ...
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Responsive Design">
+    Components use Tailwind responsive prefixes:
+    
+    ```tsx
+    className="hidden 2xl:block" // Desktop only
+    className="2xl:hidden" // Mobile/tablet only
+    ```
+  </Accordion>
+  
+  <Accordion title="Server Components">
+    Components without client-side logic are server components by default, improving performance.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Posts" icon="file-lines" href="/features/posts">
+    Learn about post creation and management
+  </Card>
+  <Card title="Authentication" icon="lock" href="/features/authentication">
+    Explore the authentication system
+  </Card>
+</CardGroup>

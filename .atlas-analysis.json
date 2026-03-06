@@ -1,0 +1,80 @@
+{
+  "projectType": "saas",
+  "projectName": "SameVibe",
+  "projectDescription": "A modern micro-blogging platform for sharing stories, experiences, and connecting with others through shared vibes.",
+  "theme": "almond",
+  "primaryColor": "#94cb04",
+  "lightColor": "#545454",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/authentication",
+              "features/posts",
+              "features/sessions",
+              "features/ui-components"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/installation",
+              "guides/configuration",
+              "guides/database-setup",
+              "guides/deployment"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Authentication",
+            "pages": [
+              "api/auth/signup",
+              "api/auth/login",
+              "api/auth/logout"
+            ]
+          },
+          {
+            "group": "Posts",
+            "pages": [
+              "api/posts/overview",
+              "api/posts/create",
+              "api/posts/delete"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "User authentication with bcrypt password encryption",
+    "Session management with secure cookies",
+    "Create, read, and explore community posts",
+    "Protected routes with custom middleware",
+    "Modern UI with glassmorphism and dark mode support",
+    "Responsive design with Tailwind CSS",
+    "PostgreSQL database with Prisma ORM"
+  ],
+  "publicApiSurface": [
+    "POST /api/auth/signup",
+    "POST /api/auth/login",
+    "POST /api/auth/logout",
+    "GET /api/posts/[id]",
+    "DELETE /api/posts/[id]"
+  ]
+}
